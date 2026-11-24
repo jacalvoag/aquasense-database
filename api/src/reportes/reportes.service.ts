@@ -540,4 +540,60 @@ async reemplazarTuberia(reporteId: string, entrada: unknown) {
     estadoGrafoInicial: 'PENDIENTE',
   };
 }
+
+async consultarEvento(reporteId: string, eventoId: string) {
+  const formatoUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  if (!formatoUuid.test(reporteId) || !formatoUuid.test(eventoId)) {
+    throw new BadRequestException(
+      'Los identificadores del reporte y del evento deben ser válidos.',
+    );
+  }
+
+  const resultado = await this.postgres.consultar(
+    `
+    SELECT
+      evento_id,
+      destino,
+      tipo,
+      estado,
+      secuencia,
+      intentos,
+      registrado_en,
+      procesado_en
+    FROM aquasense.evento_salida
+    WHERE evento_id = $1::uuid
+      AND (
+        (destino = 'DOCUMENTAL' AND reporte_id = $2::uuid)
+        OR
+        (
+          destino = 'GRAFO'
+          AND datos -> 'cambio' ->> 'reporteId' = ($2::uuid)::text
+        )
+      )
+    `,
+    [eventoId.toLowerCase(), reporteId.toLowerCase()],
+  );
+
+  if (resultado.rows.length === 0) {
+    throw new NotFoundException(
+      'El evento no existe o no corresponde al reporte.',
+    );
+  }
+
+  const evento = resultado.rows[0];
+
+  return {
+    reporteId: reporteId.toLowerCase(),
+    eventoId: evento.evento_id,
+    destino: evento.destino,
+    tipo: evento.tipo,
+    estado: evento.estado,
+    secuencia: evento.secuencia,
+    intentos: evento.intentos,
+    registradoEn: evento.registrado_en,
+    procesadoEn: evento.procesado_en,
+  };
+}
 }

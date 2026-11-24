@@ -42,4 +42,12 @@ reemplazarTuberia(
 ) {
   return this.reportes.reemplazarTuberia(reporteId, entrada);
 }
+
+@Get(':reporteId/eventos/:eventoId')
+consultarEvento(
+  @Param('reporteId') reporteId: string,
+  @Param('eventoId') eventoId: string,
+) {
+  return this.reportes.consultarEvento(reporteId, eventoId);
+}
 }

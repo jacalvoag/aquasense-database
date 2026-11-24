@@ -408,3 +408,63 @@ describe('ReportesService.reemplazarTuberia', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 });
+
+describe('ReportesService.consultarEvento', () => {
+  it('rechaza identificadores inválidos', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    await expect(
+      servicio.consultarEvento(reporteId, 'invalido'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(postgres.consultar).not.toHaveBeenCalled();
+  });
+
+  it('informa si el evento no pertenece al reporte', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockResolvedValue({ rows: [] });
+
+    await expect(
+      servicio.consultarEvento(reporteId, eventoId),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('devuelve el estado del evento', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    const registradoEn = new Date('2026-11-24T12:00:00Z');
+
+    postgres.consultar.mockResolvedValue({
+      rows: [{
+        evento_id: eventoId,
+        destino: 'GRAFO',
+        tipo: 'ACTUALIZAR_RED',
+        estado: 'PENDIENTE',
+        secuencia: '10',
+        intentos: 0,
+        registrado_en: registradoEn,
+        procesado_en: null,
+      }],
+    });
+
+    await expect(
+      servicio.consultarEvento(reporteId, eventoId),
+    ).resolves.toEqual({
+      reporteId,
+      eventoId,
+      destino: 'GRAFO',
+      tipo: 'ACTUALIZAR_RED',
+      estado: 'PENDIENTE',
+      secuencia: '10',
+      intentos: 0,
+      registradoEn,
+      procesadoEn: null,
+    });
+
+    expect(postgres.consultar).toHaveBeenCalledWith(
+      expect.stringContaining('aquasense.evento_salida'),
+      [eventoId, reporteId],
+    );
+  });
+});
