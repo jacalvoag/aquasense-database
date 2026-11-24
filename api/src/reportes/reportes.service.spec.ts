@@ -2,6 +2,7 @@ import {
   BadRequestException,
   NotFoundException,
   ServiceUnavailableException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { PostgresService } from '../postgres/postgres.service.js';
@@ -196,5 +197,77 @@ describe('ReportesService.crear', () => {
         descripcionInicial: 'Reporte de prueba.',
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('ReportesService.registrarAtencion', () => {
+  const inspeccion = {
+    tipo: 'INSPECCION',
+    fecha: '2026-11-24T11:31:48Z',
+    descripcion: 'Se revisó el área reportada.',
+    hallazgos: 'Se observó humedad.',
+  };
+
+  it('rechaza una inspección sin hallazgos', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    await expect(
+      servicio.registrarAtencion(reporteId, {
+        ...inspeccion,
+        hallazgos: '',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(postgres.consultar).not.toHaveBeenCalled();
+  });
+
+  it('registra una inspección mediante PostgreSQL', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockResolvedValue({ rows: [] });
+
+    const resultado = await servicio.registrarAtencion(
+      reporteId,
+      inspeccion,
+    );
+
+    expect(resultado.estadoDocumentalInicial).toBe('PENDIENTE');
+
+    expect(postgres.consultar).toHaveBeenCalledWith(
+      expect.stringContaining('aquasense.registrar_atencion'),
+      [
+        resultado.eventoId,
+        reporteId,
+        expect.any(String),
+      ],
+    );
+
+    const parametros = postgres.consultar.mock.calls[0][1] as unknown[];
+    const atencion = JSON.parse(parametros[2] as string);
+
+    expect(atencion).toMatchObject({
+      ...inspeccion,
+      atencionId: resultado.atencionId,
+    });
+  });
+
+  it('informa cuando el reporte o componente no existe', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockRejectedValue({ code: '23503' });
+
+    await expect(
+      servicio.registrarAtencion(reporteId, inspeccion),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('informa cuando PostgreSQL rechaza la atención por sus reglas', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockRejectedValue({ code: '23514' });
+
+    await expect(
+      servicio.registrarAtencion(reporteId, inspeccion),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 });

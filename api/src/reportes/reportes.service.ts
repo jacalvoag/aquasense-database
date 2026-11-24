@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { MongodbService } from '../mongodb/mongodb.service.js';
 import { randomUUID } from 'node:crypto';
@@ -202,6 +203,157 @@ async crear(entrada: unknown) {
     reporteId,
     eventoId,
     estadoReporte: 'PENDIENTE',
+    estadoDocumentalInicial: 'PENDIENTE',
+  };
+}
+
+async registrarAtencion(reporteId: string, entrada: unknown) {
+  const formatoUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  const formatoFecha =
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+  if (!formatoUuid.test(reporteId)) {
+    throw new BadRequestException('El identificador del reporte no es válido.');
+  }
+
+  if (
+    !entrada ||
+    typeof entrada !== 'object' ||
+    Array.isArray(entrada)
+  ) {
+    throw new BadRequestException('El cuerpo de la atención no es válido.');
+  }
+
+  const datos = entrada as Record<string, unknown>;
+
+  if (
+    datos.tipo !== 'INSPECCION' &&
+    datos.tipo !== 'REPARACION' &&
+    datos.tipo !== 'VERIFICACION'
+  ) {
+    throw new BadRequestException('El tipo de atención no es válido.');
+  }
+
+  if (
+    typeof datos.fecha !== 'string' ||
+    !formatoFecha.test(datos.fecha) ||
+    Number.isNaN(Date.parse(datos.fecha))
+  ) {
+    throw new BadRequestException(
+      'La fecha debe incluir fecha, hora y zona horaria.',
+    );
+  }
+
+  if (
+    typeof datos.descripcion !== 'string' ||
+    datos.descripcion.trim() === ''
+  ) {
+    throw new BadRequestException('La descripción es obligatoria.');
+  }
+
+  if (
+    datos.componenteId != null &&
+    (
+      typeof datos.componenteId !== 'string' ||
+      !formatoUuid.test(datos.componenteId)
+    )
+  ) {
+    throw new BadRequestException('El componenteId no es válido.');
+  }
+
+  const atencionId = randomUUID();
+  const eventoId = randomUUID();
+
+  const atencion: Record<string, unknown> = {
+    atencionId,
+    tipo: datos.tipo,
+    fecha: datos.fecha,
+    descripcion: datos.descripcion.trim(),
+  };
+
+  if (typeof datos.componenteId === 'string') {
+    atencion.componenteId = datos.componenteId.toLowerCase();
+  }
+
+  if (datos.tipo === 'INSPECCION') {
+    if (
+      typeof datos.hallazgos !== 'string' ||
+      datos.hallazgos.trim() === ''
+    ) {
+      throw new BadRequestException(
+        'La inspección requiere hallazgos.',
+      );
+    }
+
+    atencion.hallazgos = datos.hallazgos.trim();
+  }
+
+  if (datos.tipo === 'REPARACION' && datos.materiales !== undefined) {
+    if (
+      !Array.isArray(datos.materiales) ||
+      !datos.materiales.every(
+        (material) => typeof material === 'string' && material.trim() !== '',
+      )
+    ) {
+      throw new BadRequestException(
+        'Los materiales deben ser una lista de textos no vacíos.',
+      );
+    }
+
+    atencion.materiales = datos.materiales.map(
+      (material: string) => material.trim(),
+    );
+  }
+
+  if (datos.tipo === 'VERIFICACION') {
+    if (
+      datos.resultado !== 'SIN_INDICIOS' &&
+      datos.resultado !== 'PERSISTE' &&
+      datos.resultado !== 'NO_CONCLUYENTE'
+    ) {
+      throw new BadRequestException(
+        'El resultado de la verificación no es válido.',
+      );
+    }
+
+    atencion.resultado = datos.resultado;
+  }
+
+  try {
+    await this.postgres.consultar(
+      `
+      SELECT aquasense.registrar_atencion(
+        $1::uuid,
+        $2::uuid,
+        $3::jsonb
+      )
+      `,
+      [eventoId, reporteId.toLowerCase(), JSON.stringify(atencion)],
+    );
+  } catch (error: unknown) {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      if (error.code === '23503') {
+        throw new NotFoundException(
+          'El reporte o el componente indicado no existe.',
+        );
+      }
+
+      if (error.code === '23514' || error.code === '23502') {
+        throw new UnprocessableEntityException(
+          'La atención no cumple las reglas o el estado actual del reporte.',
+        );
+      }
+    }
+
+    throw error;
+  }
+
+  return {
+    reporteId: reporteId.toLowerCase(),
+    atencionId,
+    eventoId,
     estadoDocumentalInicial: 'PENDIENTE',
   };
 }
