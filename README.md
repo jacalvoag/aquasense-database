@@ -111,9 +111,9 @@ El ejemplo completo se ejecutó manualmente en estas etapas:
    confirmar el evento documental de secuencia `4`.
 9. Cerrar el reporte en PostgreSQL.
 
-Estos pasos describen lo realizado, pero **todavía no constituyen un
-procedimiento de reconstrucción automatizado**: faltan guardar los
-comandos intermedios de MongoDB, Neo4j y las confirmaciones de eventos.
+El [procedimiento manual completo](docs/ejemplo-reporte-reemplazo.md)
+reúne los comandos intermedios y las comprobaciones. No es un
+procedimiento de reconstrucción automatizado.
 
 No se debe marcar un evento como procesado sin comprobar que su cambio
 se aplicó en la base de destino.
@@ -130,8 +130,8 @@ se aplicó en la base de destino.
 
 Queda pendiente:
 
-- Guardar los comandos intermedios del ejemplo y las consultas de
-  comprobación.
+- Ejecutar y verificar el procedimiento manual completo en entornos
+  aislados de las tres bases.
 - Revisar la reconstrucción de tablas, restricciones e índices,
   además de funciones y triggers.
 - Definir las operaciones necesarias para cambios de espacios y
