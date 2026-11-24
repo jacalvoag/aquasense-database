@@ -137,5 +137,5 @@ Queda pendiente:
 - Definir las operaciones necesarias para cambios de espacios y
   componentes, y el control de acceso a las escrituras.
 - Implementar y probar la sincronización automática entre bases.
-- Crear el repositorio antes de comenzar el desarrollo de la API
-  y del sincronizador.
+- Desarrollar la API y el sincronizador en el repositorio, con cambios
+  y pruebas registrados por etapas.
