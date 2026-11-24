@@ -5,6 +5,7 @@ import { AppService } from './app.service.js';
 import { PostgresModule } from './postgres/postgres.module.js';
 import { EspaciosModule } from './espacios/espacios.module.js';
 import { ComponentesModule } from './componentes/componentes.module.js';
+import { LecturasModule } from './lecturas/lecturas.module.js';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { ComponentesModule } from './componentes/componentes.module.js';
     PostgresModule,
     EspaciosModule,
     ComponentesModule,
+    LecturasModule,
   ],
   controllers: [AppController],
   providers: [AppService],
