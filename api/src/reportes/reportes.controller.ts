@@ -34,4 +34,12 @@ export class ReportesController {
   cerrar(@Param('reporteId') reporteId: string) {
     return this.reportes.cerrar(reporteId);
   }
+
+  @Post(':reporteId/reemplazo')
+reemplazarTuberia(
+  @Param('reporteId') reporteId: string,
+  @Body() entrada: unknown,
+) {
+  return this.reportes.reemplazarTuberia(reporteId, entrada);
+}
 }

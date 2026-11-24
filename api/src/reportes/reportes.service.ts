@@ -397,4 +397,147 @@ async cerrar(reporteId: string) {
     estado: 'CERRADO',
   };
 }
+
+async reemplazarTuberia(reporteId: string, entrada: unknown) {
+  const formatoUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  const formatoFecha =
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+  if (!formatoUuid.test(reporteId)) {
+    throw new BadRequestException(
+      'El identificador del reporte no es válido.',
+    );
+  }
+
+  if (!entrada || typeof entrada !== 'object' || Array.isArray(entrada)) {
+    throw new BadRequestException(
+      'El cuerpo del reemplazo no es válido.',
+    );
+  }
+
+  const datos = entrada as Record<string, unknown>;
+
+  if (
+    typeof datos.tuberiaAnteriorId !== 'string' ||
+    !formatoUuid.test(datos.tuberiaAnteriorId) ||
+    typeof datos.tuberiaNuevaId !== 'string' ||
+    !formatoUuid.test(datos.tuberiaNuevaId)
+  ) {
+    throw new BadRequestException(
+      'Los identificadores de las tuberías no son válidos.',
+    );
+  }
+
+  if (
+    datos.tuberiaAnteriorId.toLowerCase() ===
+    datos.tuberiaNuevaId.toLowerCase()
+  ) {
+    throw new BadRequestException(
+      'La tubería anterior y la nueva deben ser diferentes.',
+    );
+  }
+
+  if (
+    typeof datos.fecha !== 'string' ||
+    !formatoFecha.test(datos.fecha) ||
+    Number.isNaN(Date.parse(datos.fecha))
+  ) {
+    throw new BadRequestException(
+      'La fecha debe incluir fecha, hora y zona horaria.',
+    );
+  }
+
+  if (
+    typeof datos.descripcion !== 'string' ||
+    datos.descripcion.trim() === ''
+  ) {
+    throw new BadRequestException('La descripción es obligatoria.');
+  }
+
+  if (
+    datos.materiales !== undefined &&
+    (
+      !Array.isArray(datos.materiales) ||
+      !datos.materiales.every(
+        (material) =>
+          typeof material === 'string' && material.trim() !== '',
+      )
+    )
+  ) {
+    throw new BadRequestException(
+      'Los materiales deben ser una lista de textos no vacíos.',
+    );
+  }
+
+  const reemplazoId = randomUUID();
+  const atencionId = randomUUID();
+  const eventoDocumentalId = randomUUID();
+  const eventoGrafoId = randomUUID();
+
+  const atencion: Record<string, unknown> = {
+    atencionId,
+    tipo: 'REPARACION',
+    fecha: datos.fecha,
+    descripcion: datos.descripcion.trim(),
+  };
+
+  if (Array.isArray(datos.materiales)) {
+    atencion.materiales = datos.materiales.map(
+      (material: string) => material.trim(),
+    );
+  }
+
+  try {
+    await this.postgres.consultar(
+      `
+      SELECT aquasense.reemplazar_tuberia(
+        $1::uuid,
+        $2::uuid,
+        $3::uuid,
+        $4::uuid,
+        $5::uuid,
+        $6::uuid,
+        $7::jsonb
+      )
+      `,
+      [
+        reemplazoId,
+        datos.tuberiaAnteriorId.toLowerCase(),
+        datos.tuberiaNuevaId.toLowerCase(),
+        reporteId.toLowerCase(),
+        eventoDocumentalId,
+        eventoGrafoId,
+        JSON.stringify(atencion),
+      ],
+    );
+  } catch (error: unknown) {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      if (error.code === '23503') {
+        throw new NotFoundException(
+          'El reporte o alguna de las tuberías no existe.',
+        );
+      }
+
+      if (error.code === '23514' || error.code === '23502') {
+        throw new UnprocessableEntityException(
+          'El reemplazo no cumple las reglas o el estado actual de la red.',
+        );
+      }
+    }
+
+    throw error;
+  }
+
+  return {
+    reporteId: reporteId.toLowerCase(),
+    reemplazoId,
+    atencionId,
+    eventoDocumentalId,
+    eventoGrafoId,
+    estadoDocumentalInicial: 'PENDIENTE',
+    estadoGrafoInicial: 'PENDIENTE',
+  };
+}
 }

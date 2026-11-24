@@ -320,3 +320,91 @@ describe('ReportesService.cerrar', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 });
+
+describe('ReportesService.reemplazarTuberia', () => {
+  const reemplazo = {
+    tuberiaAnteriorId: '20000000-0000-0000-0000-000000000006',
+    tuberiaNuevaId: '20000000-0000-0000-0000-000000000021',
+    fecha: '2026-11-24T11:56:33Z',
+    descripcion: 'Se reemplazó la tubería.',
+    materiales: ['Tubería PVC'],
+  };
+
+  it('rechaza dos tuberías con el mismo identificador', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    await expect(
+      servicio.reemplazarTuberia(reporteId, {
+        ...reemplazo,
+        tuberiaNuevaId: reemplazo.tuberiaAnteriorId,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(postgres.consultar).not.toHaveBeenCalled();
+  });
+
+  it('registra el reemplazo mediante PostgreSQL', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockResolvedValue({ rows: [] });
+
+    const resultado = await servicio.reemplazarTuberia(
+      reporteId,
+      reemplazo,
+    );
+
+    expect(resultado).toMatchObject({
+      reporteId,
+      reemplazoId: expect.any(String),
+      atencionId: expect.any(String),
+      eventoDocumentalId: expect.any(String),
+      eventoGrafoId: expect.any(String),
+      estadoDocumentalInicial: 'PENDIENTE',
+      estadoGrafoInicial: 'PENDIENTE',
+    });
+
+    expect(postgres.consultar).toHaveBeenCalledWith(
+      expect.stringContaining('aquasense.reemplazar_tuberia'),
+      [
+        resultado.reemplazoId,
+        reemplazo.tuberiaAnteriorId,
+        reemplazo.tuberiaNuevaId,
+        reporteId,
+        resultado.eventoDocumentalId,
+        resultado.eventoGrafoId,
+        expect.any(String),
+      ],
+    );
+
+    const parametros = postgres.consultar.mock.calls[0][1] as unknown[];
+    const atencion = JSON.parse(parametros[6] as string);
+
+    expect(atencion).toEqual({
+      atencionId: resultado.atencionId,
+      tipo: 'REPARACION',
+      fecha: reemplazo.fecha,
+      descripcion: reemplazo.descripcion,
+      materiales: reemplazo.materiales,
+    });
+  });
+
+  it('informa cuando el reporte o alguna tubería no existe', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockRejectedValue({ code: '23503' });
+
+    await expect(
+      servicio.reemplazarTuberia(reporteId, reemplazo),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('informa cuando el reemplazo incumple las reglas de la red', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockRejectedValue({ code: '23514' });
+
+    await expect(
+      servicio.reemplazarTuberia(reporteId, reemplazo),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+});
