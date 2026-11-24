@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { MongodbService } from '../mongodb/mongodb.service.js';
+import { randomUUID } from 'node:crypto';
 
 @Injectable()
 export class ReportesService {
@@ -119,6 +120,89 @@ export class ReportesService {
       ...expediente,
       ultimaSecuenciaAplicada: secuenciaMongo,
     },
+  };
+}
+
+async crear(entrada: unknown) {
+  if (
+    !entrada ||
+    typeof entrada !== 'object' ||
+    Array.isArray(entrada)
+  ) {
+    throw new BadRequestException('El cuerpo del reporte no es válido.');
+  }
+
+  const datos = entrada as Record<string, unknown>;
+  const formatoUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  if (
+    typeof datos.espacioId !== 'string' ||
+    !formatoUuid.test(datos.espacioId)
+  ) {
+    throw new BadRequestException('El espacioId no es válido.');
+  }
+
+  if (
+    typeof datos.descripcionInicial !== 'string' ||
+    datos.descripcionInicial.trim() === ''
+  ) {
+    throw new BadRequestException(
+      'La descripción inicial es obligatoria.',
+    );
+  }
+
+  if (
+    datos.referenciaUbicacion != null &&
+    typeof datos.referenciaUbicacion !== 'string'
+  ) {
+    throw new BadRequestException(
+      'La referencia de ubicación debe ser texto.',
+    );
+  }
+
+  const reporteId = randomUUID();
+  const eventoId = randomUUID();
+
+  try {
+    await this.postgres.consultar(
+      `
+      SELECT aquasense.crear_reporte(
+        $1::uuid,
+        $2::uuid,
+        $3::uuid,
+        $4::text,
+        $5::text
+      )
+      `,
+      [
+        reporteId,
+        eventoId,
+        datos.espacioId.toLowerCase(),
+        datos.descripcionInicial.trim(),
+        typeof datos.referenciaUbicacion === 'string'
+          ? datos.referenciaUbicacion.trim()
+          : null,
+      ],
+    );
+  } catch (error: unknown) {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === '23503'
+    ) {
+      throw new NotFoundException('El espacio indicado no existe.');
+    }
+
+    throw error;
+  }
+
+  return {
+    reporteId,
+    eventoId,
+    estadoReporte: 'PENDIENTE',
+    estadoDocumentalInicial: 'PENDIENTE',
   };
 }
 }

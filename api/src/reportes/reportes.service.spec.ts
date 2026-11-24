@@ -132,3 +132,69 @@ describe('ReportesService.consultarExpediente', () => {
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 });
+
+describe('ReportesService.crear', () => {
+  it('rechaza un cuerpo inválido sin consultar PostgreSQL', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    await expect(servicio.crear(null)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+
+    expect(postgres.consultar).not.toHaveBeenCalled();
+  });
+
+  it('rechaza una descripción vacía', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    await expect(
+      servicio.crear({
+        espacioId: '10000000-0000-0000-0000-000000000010',
+        descripcionInicial: '   ',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(postgres.consultar).not.toHaveBeenCalled();
+  });
+
+  it('crea el reporte mediante la función de PostgreSQL', async () => {
+    const { servicio, postgres, mongodb } = crearServicio();
+
+    postgres.consultar.mockResolvedValue({ rows: [] });
+
+    const resultado = await servicio.crear({
+      espacioId: '10000000-0000-0000-0000-000000000010',
+      descripcionInicial: '  Humedad cerca de los lavabos.  ',
+      referenciaUbicacion: '  Baños de UD1  ',
+    });
+
+    expect(resultado.estadoReporte).toBe('PENDIENTE');
+    expect(resultado.estadoDocumentalInicial).toBe('PENDIENTE');
+
+    expect(postgres.consultar).toHaveBeenCalledWith(
+      expect.stringContaining('aquasense.crear_reporte'),
+      [
+        resultado.reporteId,
+        resultado.eventoId,
+        '10000000-0000-0000-0000-000000000010',
+        'Humedad cerca de los lavabos.',
+        'Baños de UD1',
+      ],
+    );
+
+    expect(mongodb.buscarExpediente).not.toHaveBeenCalled();
+  });
+
+  it('informa cuando el espacio no existe', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockRejectedValue({ code: '23503' });
+
+    await expect(
+      servicio.crear({
+        espacioId: '10000000-0000-0000-0000-000000000010',
+        descripcionInicial: 'Reporte de prueba.',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
