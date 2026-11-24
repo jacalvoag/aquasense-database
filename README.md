@@ -120,22 +120,26 @@ se aplicó en la base de destino.
 
 ## Estado actual y pendientes
 
-- La estructura y carga base de PostgreSQL se reconstruyeron en una
-  base separada. Las 21 funciones y los 6 triggers coincidieron con
+### Realizado
+
+- Se reconstruyó la estructura y carga base de PostgreSQL en una base
+  separada. Las 21 funciones y los 6 triggers comparados coincidieron con
   los de la base original.
-- Se creó y probó la colección de expedientes de MongoDB.
-- Se cargó y comparó la red base en Neo4j.
-- Se completó manualmente un ejemplo de reporte y reemplazo en las
-  tres bases.
+- Se prepararon MongoDB y Neo4j en bases de reconstrucción separadas.
+- Se completó el ejemplo manual de reporte, inspección, reemplazo de
+  tubería, verificación y cierre entre las tres bases.
+- Se implementó un sincronizador que procesa eventos documentales y
+  cambios de red. Su configuración y alcance están descritos en
+  [sincronizador/README.md](sincronizador/README.md).
+- Se probaron la recuperación de algunas interrupciones, el registro de
+  fallos, la reactivación de eventos y la selección ordenada de eventos.
 
-Queda pendiente:
+### Pendiente
 
-- Ejecutar y verificar el procedimiento manual completo en entornos
-  aislados de las tres bases.
-- Revisar la reconstrucción de tablas, restricciones e índices,
-  además de funciones y triggers.
+- Ampliar las pruebas automatizadas del procesamiento completo entre
+  PostgreSQL, MongoDB y Neo4j.
+- Revisar la reconstrucción de tablas, restricciones e índices de
+  PostgreSQL, además de las funciones y los triggers ya comparados.
 - Definir las operaciones necesarias para cambios de espacios y
   componentes, y el control de acceso a las escrituras.
-- Implementar y probar la sincronización automática entre bases.
-- Desarrollar la API y el sincronizador en el repositorio, con cambios
-  y pruebas registrados por etapas.
+- Definir e implementar la API para el escenario del campus.
