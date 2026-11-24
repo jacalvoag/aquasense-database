@@ -1,0 +1,9 @@
+import { Module } from '@nestjs/common';
+import { PostgresController } from './postgres.controller.js';
+import { PostgresService } from './postgres.service.js';
+
+@Module({
+  controllers: [PostgresController],
+  providers: [PostgresService],
+})
+export class PostgresModule {}
