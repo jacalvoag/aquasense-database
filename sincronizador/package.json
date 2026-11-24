@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --import tsx --test src/conexion.test.ts",
     "dev": "node --env-file=.env --import tsx src/index.ts",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test:integracion": "node --env-file=.env --import tsx --test src/eventos.integration.test.ts"
   },
   "keywords": [],
   "author": "",

@@ -47,6 +47,24 @@ npm run dev
 El programa revisa los eventos aproximadamente cada cinco segundos. Para
 detenerlo, presiona `Ctrl+C`.
 
+## Pruebas
+
+Para ejecutar las pruebas unitarias:
+
+```powershell
+npm test
+```
+
+Para probar la consulta de eventos contra PostgreSQL:
+
+```powershell
+npm run test:integracion
+```
+
+La prueba de integración requiere la base `aquasense_reconstruccion`, sin
+eventos pendientes disponibles y con el sincronizador detenido. Sus eventos
+de prueba se crean dentro de una transacción que termina en `ROLLBACK`.
+
 ## Operaciones implementadas
 
 - Crear expedientes y agregar atenciones en MongoDB.
