@@ -26,6 +26,10 @@ export class PostgresService implements OnModuleDestroy {
     await this.pool.query('SELECT 1');
   }
 
+  async consultar(sql: string, parametros: unknown[] = []) {
+    return this.pool.query(sql, parametros);
+  }
+
   async onModuleDestroy(): Promise<void> {
     await this.pool.end();
   }

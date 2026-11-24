@@ -5,5 +5,6 @@ import { PostgresService } from './postgres.service.js';
 @Module({
   controllers: [PostgresController],
   providers: [PostgresService],
+  exports: [PostgresService],
 })
 export class PostgresModule {}
