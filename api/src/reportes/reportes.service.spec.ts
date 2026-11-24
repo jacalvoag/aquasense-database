@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   NotFoundException,
   ServiceUnavailableException,
   UnprocessableEntityException,
@@ -269,5 +270,53 @@ describe('ReportesService.registrarAtencion', () => {
     await expect(
       servicio.registrarAtencion(reporteId, inspeccion),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+});
+
+describe('ReportesService.cerrar', () => {
+  it('rechaza un identificador inválido sin consultar PostgreSQL', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    await expect(
+      servicio.cerrar('identificador-invalido'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(postgres.consultar).not.toHaveBeenCalled();
+  });
+
+  it('cierra el reporte mediante la función de PostgreSQL', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockResolvedValue({ rows: [] });
+
+    await expect(servicio.cerrar(reporteId)).resolves.toEqual({
+      reporteId,
+      estado: 'CERRADO',
+    });
+
+    expect(postgres.consultar).toHaveBeenCalledWith(
+      expect.stringContaining('aquasense.cerrar_reporte'),
+      [reporteId],
+    );
+  });
+
+  it('informa cuando el reporte no existe', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockRejectedValue({ code: '23503' });
+
+    await expect(
+      servicio.cerrar(reporteId),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('informa cuando el reporte no cumple las reglas para cerrarse', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockRejectedValue({ code: '23514' });
+
+    await expect(
+      servicio.cerrar(reporteId),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

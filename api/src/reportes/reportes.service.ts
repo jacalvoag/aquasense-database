@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
   UnprocessableEntityException,
+  ConflictException,
 } from '@nestjs/common';
 import { MongodbService } from '../mongodb/mongodb.service.js';
 import { randomUUID } from 'node:crypto';
@@ -355,6 +356,45 @@ async registrarAtencion(reporteId: string, entrada: unknown) {
     atencionId,
     eventoId,
     estadoDocumentalInicial: 'PENDIENTE',
+  };
+}
+
+async cerrar(reporteId: string) {
+  const formatoUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  if (!formatoUuid.test(reporteId)) {
+    throw new BadRequestException(
+      'El identificador del reporte no es válido.',
+    );
+  }
+
+  const id = reporteId.toLowerCase();
+
+  try {
+    await this.postgres.consultar(
+      'SELECT aquasense.cerrar_reporte($1::uuid)',
+      [id],
+    );
+  } catch (error: unknown) {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      if (error.code === '23503') {
+        throw new NotFoundException('El reporte no existe.');
+      }
+
+      if (error.code === '23514') {
+        throw new ConflictException(
+          'El reporte no cumple las condiciones para cerrarse.',
+        );
+      }
+    }
+
+    throw error;
+  }
+
+  return {
+    reporteId: id,
+    estado: 'CERRADO',
   };
 }
 }

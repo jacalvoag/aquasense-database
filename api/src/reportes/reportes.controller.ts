@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, HttpCode } from '@nestjs/common';
 import { ReportesService } from './reportes.service.js';
 
 
@@ -27,5 +27,11 @@ export class ReportesController {
     @Body() entrada: unknown,
   ) {
     return this.reportes.registrarAtencion(reporteId, entrada);
+  }
+
+  @Post(':reporteId/cerrar')
+  @HttpCode(200)
+  cerrar(@Param('reporteId') reporteId: string) {
+    return this.reportes.cerrar(reporteId);
   }
 }
