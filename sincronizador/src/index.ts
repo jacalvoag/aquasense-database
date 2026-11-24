@@ -3,7 +3,10 @@ import { isDeepStrictEqual } from "node:util";
 import { Long, MongoClient, type Document } from "mongodb";
 import neo4j from "neo4j-driver";
 import { destinoDe } from "./conexion.js";
-import { obtenerEventosPendientes } from "./eventos";
+import { 
+  obtenerEventosPendientes,
+  obtenerEventosEnError
+} from "./eventos";
 import { obtenerBloqueo } from "./bloqueo";
 import { registrarFallo } from "./fallos";
 
@@ -71,6 +74,12 @@ async function main(): Promise<void> {
     );
 
 const eventosPendientes = await obtenerEventosPendientes(postgres);
+const eventosEnError = await obtenerEventosEnError(postgres);
+
+if (eventosEnError.rows.length > 0) {
+  console.error("Eventos en ERROR — se muestran hasta 20:");
+  console.table(eventosEnError.rows);
+}
 
     console.log(
       "Eventos pendientes disponibles:",

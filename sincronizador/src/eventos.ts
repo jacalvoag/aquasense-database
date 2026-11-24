@@ -42,3 +42,19 @@ export async function obtenerEventosPendientes(postgres: Client) {
     LIMIT 20
   `);
 }
+
+export async function obtenerEventosEnError(postgres: Client) {
+  return postgres.query(`
+    SELECT
+      evento_id,
+      destino,
+      tipo,
+      reporte_id,
+      secuencia,
+      intentos
+    FROM aquasense.evento_salida
+    WHERE estado = 'ERROR'
+    ORDER BY registrado_en, evento_id
+    LIMIT 20
+  `);
+}

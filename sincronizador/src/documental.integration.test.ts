@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 
-import { obtenerEventosPendientes } from "./eventos";
+import { 
+  obtenerEventosPendientes,
+  obtenerEventosEnError
+} from "./eventos";
 
 function variable(nombre: string): string {
   const valor = process.env[nombre];
@@ -93,6 +96,14 @@ test("un error documental no bloquea otro reporte", async () => {
       WHERE evento_id = $1::uuid
       `,
       [eventoConError],
+    );
+
+    const eventosEnError = await obtenerEventosEnError(postgres);
+
+    assert.equal(
+      eventosEnError.rows.some((evento) => evento.evento_id === eventoConError),
+      true,
+      "El evento en ERROR debe aparecer en la consulta de errores.",
     );
 
     let pendientes = await obtenerEventosPendientes(postgres);
