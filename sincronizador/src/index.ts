@@ -2,6 +2,7 @@ import pg from "pg";
 import { isDeepStrictEqual } from "node:util";
 import { Long, MongoClient, type Document } from "mongodb";
 import neo4j from "neo4j-driver";
+import { destinoDe } from "./conexion.js";
 
 type Expediente = {
   reporteId: string;
@@ -22,24 +23,6 @@ function variable(nombre: string): string {
   }
 
   return valor;
-}
-
-function destinoDe(conexion: Document): {
-  tipo: "Componente" | "Espacio";
-  id: string;
-} {
-  const componente = conexion.componente_destino_id;
-  const espacio = conexion.espacio_destino_id;
-
-  if (typeof componente === "string" && espacio === null) {
-    return { tipo: "Componente", id: componente };
-  }
-
-  if (componente === null && typeof espacio === "string") {
-    return { tipo: "Espacio", id: espacio };
-  }
-
-  throw new Error("La conexión debe tener exactamente un destino.");
 }
 
 async function main(): Promise<void> {
