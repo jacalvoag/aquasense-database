@@ -77,6 +77,7 @@ PostgreSQL. Las actualizaciones entre bases no son inmediatas.
 | POST | `/reportes/:reporteId/atenciones` | Registra una atención. |
 | POST | `/reportes/:reporteId/reemplazo` | Registra el reemplazo de una tubería. |
 | POST | `/reportes/:reporteId/cerrar` | Cierra un reporte que cumple las condiciones. |
+| GET | `/reportes/:reporteId/eventos/:eventoId` | Consulta el estado de un evento asociado al reporte. |
 
 Las rutas con `:reporteId` o `:componenteId` requieren sustituir esa parte
 por el identificador correspondiente.
@@ -202,6 +203,35 @@ Cuando el evento documental está `PENDIENTE` o en `ERROR`, la respuesta
 incluye ese estado y `expediente: null`. Cuando está `PROCESADO`, la API
 comprueba que el expediente en MongoDB coincida con el evento confirmado
 antes de devolverlo.
+
+## Estado de los eventos de un reporte
+
+`GET /reportes/:reporteId/eventos/:eventoId`
+
+Permite consultar un evento documental o de grafo asociado al reporte.
+La respuesta incluye su destino, tipo, estado, secuencia y número de intentos.
+
+Los estados posibles son:
+
+- `PENDIENTE`: el sincronizador aún no ha confirmado el evento.
+- `PROCESADO`: PostgreSQL registra que el evento fue confirmado.
+- `ERROR`: el procesamiento falló y requiere atención.
+
+Al solicitar un reemplazo, la respuesta incluye `eventoDocumentalId` y
+`eventoGrafoId`. Se puede consultar cada uno por separado con esta ruta.
+La confirmación de un evento no implica que el otro también esté procesado.
+
+Si el identificador no es válido, la API responde con error. Si el evento
+no existe o no corresponde al reporte, responde con `404`.
+
+## Conexiones de un componente
+
+`GET /componentes` incluye el campo booleano `tiene_conexiones`, calculado
+a partir de las conexiones registradas en PostgreSQL.
+
+Una tubería activa sin conexiones puede ser candidata para un reemplazo,
+pero PostgreSQL verifica las demás reglas al solicitarlo. El campo no
+confirma que la información ya esté sincronizada con Neo4j.
 
 ## Pruebas
 

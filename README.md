@@ -133,6 +133,8 @@ se aplicó en la base de destino.
   [sincronizador/README.md](sincronizador/README.md).
 - Se probaron la recuperación de algunas interrupciones, el registro de
   fallos, la reactivación de eventos y la selección ordenada de eventos.
+- Se implementó una API para el escenario del campus. Sus rutas y
+  configuración se describen en [api/README.md](api/README.md).
 
 ### Pendiente
 
@@ -142,4 +144,5 @@ se aplicó en la base de destino.
   PostgreSQL, además de las funciones y los triggers ya comparados.
 - Definir las operaciones necesarias para cambios de espacios y
   componentes, y el control de acceso a las escrituras.
-- Definir e implementar la API para el escenario del campus.
+- Verificar el flujo completo desde la API, incluida la creación y el
+  reemplazo de una tubería y la consulta del estado de ambos eventos.
