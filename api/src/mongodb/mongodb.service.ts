@@ -25,4 +25,14 @@ export class MongodbService implements OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     await this.cliente.close();
   }
+
+  async buscarExpediente(reporteId: string) {
+    return this.base.collection('expedientes').findOne(
+      { reporteId },
+      {
+        projection: { _id: 0 },
+        promoteLongs: false,
+      },
+    );
+  }
 }

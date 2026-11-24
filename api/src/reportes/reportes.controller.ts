@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ReportesService } from './reportes.service.js';
 
 @Controller('reportes')
@@ -8,5 +8,10 @@ export class ReportesController {
   @Get()
   listar() {
     return this.reportes.listar();
+  }
+
+  @Get(':reporteId/expediente')
+  consultarExpediente(@Param('reporteId') reporteId: string) {
+    return this.reportes.consultarExpediente(reporteId);
   }
 }
