@@ -7,7 +7,7 @@
     "test": "node --import tsx --test src/conexion.test.ts",
     "dev": "node --env-file=.env --import tsx src/index.ts",
     "check": "tsc --noEmit",
-    "test:integracion": "node --env-file=.env --import tsx --test src/eventos.integration.test.ts"
+    "test:integracion": "node --env-file=.env --import tsx --test src/eventos.integration.test.ts src/documental.integration.test.ts"
   },
   "keywords": [],
   "author": "",
