@@ -87,6 +87,37 @@ test("selecciona eventos de grafo en orden y respeta el reintento", async () => 
       "No debe seleccionar un evento si el anterior está en ERROR.",
     );
 
+    // Si falta por completo el evento anterior, tampoco debe seleccionarse.
+    await postgres.query(
+    `
+    DELETE FROM aquasense.evento_salida
+    WHERE evento_id = $1::uuid
+    `,
+    [eventoAnterior],
+    );
+
+    pendientes = await obtenerEventosPendientes(postgres);
+
+    assert.equal(
+    pendientes.rows.some((evento) => evento.evento_id === eventoSiguiente),
+    false,
+    "No debe seleccionar el evento si falta el anterior.",
+    );
+
+    // Restaurar el evento de prueba para continuar con el siguiente caso.
+    await postgres.query(
+    `
+    INSERT INTO aquasense.evento_salida (
+        evento_id, destino, tipo, secuencia, datos, estado
+    )
+    VALUES (
+        $1::uuid, 'GRAFO', 'ACTUALIZAR_RED',
+        $2::bigint, '{}'::jsonb, 'ERROR'
+    )
+    `,
+    [eventoAnterior, siguiente.toString()],
+    );
+
     // Al quedar procesado el anterior, el siguiente se vuelve elegible.
     await postgres.query(
       `

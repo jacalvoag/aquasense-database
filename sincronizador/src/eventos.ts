@@ -27,6 +27,17 @@ export async function obtenerEventosPendientes(postgres: Client) {
             OR anterior.reporte_id = e.reporte_id
           )
       )
+        AND (
+            e.destino <> 'GRAFO'
+            OR e.secuencia = 1
+            OR EXISTS (
+                SELECT 1
+                FROM aquasense.evento_salida AS previo
+                WHERE previo.destino = 'GRAFO'
+                AND previo.secuencia = e.secuencia - 1
+                AND previo.estado = 'PROCESADO'
+            )
+        )
     ORDER BY e.registrado_en, e.evento_id
     LIMIT 20
   `);
