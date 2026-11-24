@@ -7,6 +7,7 @@ import { EspaciosModule } from './espacios/espacios.module.js';
 import { ComponentesModule } from './componentes/componentes.module.js';
 import { LecturasModule } from './lecturas/lecturas.module.js';
 import { ReportesModule } from './reportes/reportes.module.js';
+import { MongodbModule } from './mongodb/mongodb.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ReportesModule } from './reportes/reportes.module.js';
     ComponentesModule,
     LecturasModule,
     ReportesModule,
+    MongodbModule,
   ],
   controllers: [AppController],
   providers: [AppService],
