@@ -5,6 +5,7 @@ import neo4j from "neo4j-driver";
 import { destinoDe } from "./conexion.js";
 import { obtenerEventosPendientes } from "./eventos";
 import { obtenerBloqueo } from "./bloqueo";
+import { registrarFallo } from "./fallos";
 
 type Expediente = {
   reporteId: string;
@@ -1143,47 +1144,36 @@ const eventosPendientes = await obtenerEventosPendientes(postgres);
     } finally {
       await sesion.close();
     }
-  } catch (error: unknown) {
-    if (eventoActual !== null) {
-      try {
-        const estado = await postgres.query(
-          "SELECT estado FROM aquasense.evento_salida WHERE evento_id = $1::uuid",
-          [eventoActual.evento_id],
-        );
+} catch (error: unknown) {
+  if (eventoActual !== null) {
+    try {
+      const estado = await registrarFallo(postgres, eventoActual);
 
-        if (estado.rows[0]?.estado === "PENDIENTE") {
-          const funcion = eventoActual.destino === "DOCUMENTAL"
-            ? "aquasense.registrar_fallo_documental"
-            : eventoActual.destino === "GRAFO"
-              ? "aquasense.registrar_fallo_grafo"
-              : null;
-
-          if (funcion === null) {
-            throw new Error("Destino de evento no reconocido.");
-          }
-
-          const resultado = await postgres.query(
-            `SELECT ${funcion}($1::uuid, $2::text, CURRENT_TIMESTAMP + INTERVAL '1 minute') AS estado`,
-            [eventoActual.evento_id, "Falló el procesamiento del evento; revisar la salida del sincronizador."],
-          );
-
-          console.error(
-            `Fallo registrado para ${eventoActual.evento_id}. Estado: ${resultado.rows[0].estado}`,
-          );
-        } else if (estado.rows[0]?.estado === "PROCESADO") {
-          console.error(`El evento ${eventoActual.evento_id} ya figura como PROCESADO.`);
-        } else {
-          console.error(`No se registró un fallo: el evento no está pendiente o no existe.`);
-        }
-      } catch (errorRegistro: unknown) {
+      if (estado === "PROCESADO") {
         console.error(
-          "No se pudo registrar el fallo en PostgreSQL:",
-          errorRegistro instanceof Error ? errorRegistro.message : "Error desconocido",
+          `El evento ${eventoActual.evento_id} ya figura como PROCESADO.`,
+        );
+      } else if (estado === "NO_PENDIENTE") {
+        console.error(
+          "No se registró un fallo: el evento no está pendiente o no existe.",
+        );
+      } else {
+        console.error(
+          `Fallo registrado para ${eventoActual.evento_id}. Estado: ${estado}`,
         );
       }
+    } catch (errorRegistro: unknown) {
+      console.error(
+        "No se pudo registrar el fallo en PostgreSQL:",
+        errorRegistro instanceof Error
+          ? errorRegistro.message
+          : "Error desconocido",
+      );
     }
+  }
 
-    throw error;
+  throw error;
+
   } finally {
     await Promise.allSettled([
       postgres.end(),
