@@ -212,3 +212,30 @@ describe('ComponentesService.crearTuberia', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 });
+
+describe('ComponentesService.listar', () => {
+  it('incluye si un componente tiene conexiones', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockResolvedValue({
+      rows: [{
+        componente_id: '20000000-0000-0000-0000-000000000021',
+        codigo: 'TUB-15',
+        tipo: 'TUBERIA',
+        estado: 'ACTIVO',
+        tiene_conexiones: false,
+      }],
+    });
+
+    await expect(servicio.listar()).resolves.toEqual([
+      expect.objectContaining({
+        codigo: 'TUB-15',
+        tiene_conexiones: false,
+      }),
+    ]);
+
+    expect(postgres.consultar).toHaveBeenCalledWith(
+      expect.stringContaining('AS tiene_conexiones'),
+    );
+  });
+});

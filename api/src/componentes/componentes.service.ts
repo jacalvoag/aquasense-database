@@ -24,9 +24,15 @@ export class ComponentesService {
         c.nombre,
         c.tipo,
         c.estado,
-        c.espacio_id,
-        e.nombre AS espacio_nombre,
-        c.descripcion
+c.espacio_id,
+e.nombre AS espacio_nombre,
+c.descripcion,
+EXISTS (
+  SELECT 1
+  FROM aquasense.conexion AS conexion
+  WHERE conexion.componente_origen_id = c.componente_id
+     OR conexion.componente_destino_id = c.componente_id
+) AS tiene_conexiones
       FROM aquasense.componente AS c
       LEFT JOIN aquasense.espacio AS e
         ON e.espacio_id = c.espacio_id
