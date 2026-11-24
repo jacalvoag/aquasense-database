@@ -4,12 +4,14 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { PostgresModule } from './postgres/postgres.module.js';
 import { EspaciosModule } from './espacios/espacios.module.js';
+import { ComponentesModule } from './componentes/componentes.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PostgresModule,
     EspaciosModule,
+    ComponentesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
