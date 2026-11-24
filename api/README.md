@@ -1,114 +1,221 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# API AquaSense
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API para consultar información del sistema de agua del campus, registrar
+lecturas y gestionar reportes y reemplazos de tuberías.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+La API utiliza PostgreSQL como base principal, MongoDB para expedientes y
+Neo4j para consultar la red de componentes.
 
-## Description
+## Requisitos
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- Node.js y npm. Las pruebas locales se realizaron con Node.js 26.13.0.
+- PostgreSQL, MongoDB y Neo4j en ejecución.
+- Las bases preparadas mediante los scripts del repositorio.
+- El sincronizador configurado para procesar los eventos.
 
-## Project setup
+## Configuración
 
-```bash
-$ npm install
+Desde la carpeta `api`, instala las dependencias:
+
+```powershell
+npm ci
 ```
 
-## Compile and run the project
+Copia la plantilla de configuración:
 
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+```powershell
+Copy-Item .env.example .env
 ```
 
-## Run tests
+Edita `.env` con las credenciales y nombres de tus bases. La plantilla utiliza
+las bases de reconstrucción:
 
-```bash
-# unit tests
-$ npm run test
+- PostgreSQL y MongoDB: `aquasense_reconstruccion`.
+- Neo4j: `aquasense-reconstruccion`.
 
-# e2e tests
-$ npm run test:e2e
+El archivo `.env` contiene credenciales y no debe subirse al repositorio.
 
-# test coverage
-$ npm run test:cov
+## Ejecución
+
+Desde la carpeta `api`:
+
+```powershell
+npm run start:dev
 ```
 
-## Deployment
+Por defecto, la API escucha en:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+```text
+http://127.0.0.1:3000
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+En otra terminal, desde la carpeta `sincronizador`, inicia el proceso:
 
-## Observability
+```powershell
+npm run dev
+```
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+El sincronizador aplica en MongoDB y Neo4j los eventos pendientes de
+PostgreSQL. Las actualizaciones entre bases no son inmediatas.
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+## Rutas disponibles
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+| Método | Ruta | Función |
+| --- | --- | --- |
+| GET | `/salud/postgres` | Comprueba la conexión con PostgreSQL. |
+| GET | `/salud/mongodb` | Comprueba la conexión con MongoDB. |
+| GET | `/salud/neo4j` | Comprueba la conexión con Neo4j. |
+| GET | `/espacios` | Lista los espacios del campus. |
+| GET | `/componentes` | Lista los componentes de la red. |
+| GET | `/componentes/:componenteId/espacios-afectados` | Consulta los espacios alcanzables desde un componente. |
+| POST | `/componentes/tuberias` | Registra una tubería nueva sin conexiones. |
+| GET | `/lecturas` | Lista las lecturas y el consumo entre ellas. |
+| POST | `/lecturas` | Registra una lectura de un medidor. |
+| GET | `/reportes` | Lista los reportes y su estado documental. |
+| POST | `/reportes` | Registra un reporte. |
+| GET | `/reportes/:reporteId/expediente` | Consulta el expediente documental de un reporte. |
+| POST | `/reportes/:reporteId/atenciones` | Registra una atención. |
+| POST | `/reportes/:reporteId/reemplazo` | Registra el reemplazo de una tubería. |
+| POST | `/reportes/:reporteId/cerrar` | Cierra un reporte que cumple las condiciones. |
 
-## Resources
+Las rutas con `:reporteId` o `:componenteId` requieren sustituir esa parte
+por el identificador correspondiente.
 
-Check out a few resources that may come in handy when working with NestJS:
+## Ejemplos de solicitudes
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Los ejemplos muestran el cuerpo JSON. Para las solicitudes `POST`, envía el
+encabezado `Content-Type: application/json`.
 
-## Support
+### Crear un reporte
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+`POST /reportes`
 
-## Stay in touch
+```json
+{
+  "espacioId": "10000000-0000-0000-0000-000000000010",
+  "descripcionInicial": "Se observó humedad cerca de los lavabos.",
+  "referenciaUbicacion": "Baños de estudiantes de UD1"
+}
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+La respuesta contiene el `reporteId` y el identificador del evento
+documental. El expediente se crea cuando el sincronizador procesa el evento.
 
-## License
+### Registrar una atención
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+`POST /reportes/:reporteId/atenciones`
+
+Ejemplo de inspección:
+
+```json
+{
+  "tipo": "INSPECCION",
+  "fecha": "2026-11-24T11:31:48Z",
+  "descripcion": "Se revisó el área reportada.",
+  "hallazgos": "Se observó humedad cerca de los lavabos."
+}
+```
+
+Ejemplo de verificación:
+
+```json
+{
+  "tipo": "VERIFICACION",
+  "fecha": "2026-11-24T12:00:00Z",
+  "descripcion": "Se revisó el área después de la reparación.",
+  "resultado": "SIN_INDICIOS"
+}
+```
+
+También se acepta el tipo `REPARACION`, con una lista opcional de
+`materiales`. La fecha debe incluir zona horaria.
+
+### Registrar una lectura
+
+`POST /lecturas`
+
+```json
+{
+  "medidorId": "20000000-0000-0000-0000-000000000002",
+  "fechaHora": "2026-11-24T11:56:33Z",
+  "valorAcumulado": "120.000"
+}
+```
+
+`valorAcumulado` se envía como texto numérico, con hasta tres decimales.
+La lectura debe cumplir las reglas del medidor, incluida la fecha y el
+valor de su última lectura. Los valores del ejemplo deben adaptarse al
+estado actual de la base.
+
+### Registrar una tubería para reemplazo
+
+`POST /componentes/tuberias`
+
+```json
+{
+  "codigo": "TUB-15",
+  "nombre": "Tubería de reemplazo",
+  "espacioId": "10000000-0000-0000-0000-000000000010",
+  "descripcion": "Tubería preparada para una reparación."
+}
+```
+
+La respuesta incluye el `componenteId` generado. La tubería queda activa,
+pero sin conexiones. Se registra en PostgreSQL; el evento de reemplazo
+permitirá incorporarla a Neo4j cuando se instale.
+
+### Reemplazar una tubería
+
+`POST /reportes/:reporteId/reemplazo`
+
+```json
+{
+  "tuberiaAnteriorId": "ID-DE-LA-TUBERIA-ANTERIOR",
+  "tuberiaNuevaId": "ID-DE-LA-TUBERIA-NUEVA",
+  "fecha": "2026-11-24T12:00:00Z",
+  "descripcion": "Se reemplazó la tubería dañada.",
+  "materiales": ["Tubería PVC", "Conexiones de PVC"]
+}
+```
+
+Ambos identificadores deben ser UUID reales. La tubería nueva debe existir,
+estar activa y no tener conexiones. La operación registra la reparación y
+genera un evento documental y otro para actualizar el grafo.
+
+La respuesta indica el estado inicial `PENDIENTE` de ambos eventos. El
+sincronizador debe procesarlos para completar la actualización en MongoDB
+y Neo4j.
+
+### Cerrar un reporte
+
+`POST /reportes/:reporteId/cerrar`
+
+No requiere cuerpo JSON. PostgreSQL valida las condiciones de cierre,
+incluida una verificación con resultado `SIN_INDICIOS` y la confirmación
+del último evento documental.
+
+## Consulta del expediente
+
+`GET /reportes/:reporteId/expediente`
+
+Cuando el evento documental está `PENDIENTE` o en `ERROR`, la respuesta
+incluye ese estado y `expediente: null`. Cuando está `PROCESADO`, la API
+comprueba que el expediente en MongoDB coincida con el evento confirmado
+antes de devolverlo.
+
+## Pruebas
+
+Desde la carpeta `api`:
+
+```powershell
+npm test
+npm run build
+```
+
+Las pruebas unitarias no sustituyen la comprobación completa del sistema
+con PostgreSQL, MongoDB, Neo4j y el sincronizador.
+
+## Estado de la integración
+
+La API se ha probado localmente con las bases de reconstrucción. El
+frontend y la comprobación final del flujo completo están pendientes.
