@@ -4,6 +4,7 @@ import { Long, MongoClient, type Document } from "mongodb";
 import neo4j from "neo4j-driver";
 import { destinoDe } from "./conexion.js";
 import { obtenerEventosPendientes } from "./eventos";
+import { obtenerBloqueo } from "./bloqueo";
 
 type Expediente = {
   reporteId: string;
@@ -49,6 +50,15 @@ async function main(): Promise<void> {
 
   try {
     await postgres.connect();
+
+  const bloqueoAdquirido = await obtenerBloqueo(postgres);
+
+  if (!bloqueoAdquirido) {
+    console.log(
+      "Otro sincronizador tiene el bloqueo. Se intentará en el siguiente ciclo.",
+    );
+    return;
+  }
 
     const resultadoPostgres = await postgres.query(
       "SELECT current_database() AS base",

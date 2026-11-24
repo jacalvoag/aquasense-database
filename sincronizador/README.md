@@ -77,8 +77,11 @@ de tres fallos, el evento pasa a `ERROR` y requiere reactivación.
 
 ## Alcance actual
 
-Ejecuta **una sola instancia** del sincronizador. Aún no hay coordinación entre
-varios procesos para impedir que intenten procesar el mismo evento.
+El sincronizador usa un bloqueo de sesión en PostgreSQL para evitar que dos
+instancias procesen eventos durante el mismo ciclo. Se recomienda ejecutar
+una sola instancia: el bloqueo se libera si se pierde la sesión de PostgreSQL
+y todavía no cubre por completo una interrupción durante una operación en
+otra base.
 
 El sincronizador se ha probado localmente con las bases de reconstrucción.
 Las pruebas realizadas no cubren todas las posibles fallas o configuraciones.
