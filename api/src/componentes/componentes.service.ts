@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PostgresService } from '../postgres/postgres.service.js';
 import { Neo4jService } from '../neo4j/neo4j.service.js';
+import { randomUUID } from 'node:crypto';
 
 @Injectable()
 export class ComponentesService {
@@ -130,4 +131,107 @@ export class ComponentesService {
       espacios: grafo.espacios,
     };
   }
+
+  async crearTuberia(entrada: unknown) {
+  if (!entrada || typeof entrada !== 'object' || Array.isArray(entrada)) {
+    throw new BadRequestException('El cuerpo de la tubería no es válido.');
+  }
+
+  const datos = entrada as Record<string, unknown>;
+
+  if (
+    typeof datos.codigo !== 'string' ||
+    datos.codigo.trim() === '' ||
+    datos.codigo.trim().length > 40
+  ) {
+    throw new BadRequestException(
+      'El código es obligatorio y debe tener hasta 40 caracteres.',
+    );
+  }
+
+  if (
+    typeof datos.nombre !== 'string' ||
+    datos.nombre.trim() === '' ||
+    datos.nombre.trim().length > 150
+  ) {
+    throw new BadRequestException(
+      'El nombre es obligatorio y debe tener hasta 150 caracteres.',
+    );
+  }
+
+  const formatoUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  if (
+    datos.espacioId != null &&
+    (
+      typeof datos.espacioId !== 'string' ||
+      !formatoUuid.test(datos.espacioId)
+    )
+  ) {
+    throw new BadRequestException('El espacioId no es válido.');
+  }
+
+  if (datos.descripcion != null && typeof datos.descripcion !== 'string') {
+    throw new BadRequestException('La descripción debe ser texto.');
+  }
+
+  const componenteId = randomUUID();
+  const codigo = datos.codigo.trim().toUpperCase();
+  const nombre = datos.nombre.trim();
+
+  try {
+    await this.postgres.consultar(
+      `
+      INSERT INTO aquasense.componente (
+        componente_id,
+        codigo,
+        nombre,
+        tipo,
+        estado,
+        espacio_id,
+        descripcion
+      )
+      VALUES ($1::uuid, $2, $3, 'TUBERIA', 'ACTIVO', $4::uuid, $5)
+      `,
+      [
+        componenteId,
+        codigo,
+        nombre,
+        typeof datos.espacioId === 'string'
+          ? datos.espacioId.toLowerCase()
+          : null,
+        typeof datos.descripcion === 'string'
+          ? datos.descripcion.trim()
+          : null,
+      ],
+    );
+  } catch (error: unknown) {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      if (error.code === '23503') {
+        throw new NotFoundException('El espacio indicado no existe.');
+      }
+
+      if (error.code === '23505') {
+        throw new ConflictException('El código de componente ya existe.');
+      }
+
+      if (error.code === '23514') {
+        throw new BadRequestException(
+          'La tubería no cumple las restricciones de la base de datos.',
+        );
+      }
+    }
+
+    throw error;
+  }
+
+  return {
+    componenteId,
+    codigo,
+    nombre,
+    tipo: 'TUBERIA',
+    estado: 'ACTIVO',
+  };
+}
 }

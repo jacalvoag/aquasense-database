@@ -143,3 +143,72 @@ describe('ComponentesService.espaciosAfectados', () => {
     });
   });
 });
+
+describe('ComponentesService.crearTuberia', () => {
+  const tuberia = {
+    codigo: 'TUB-15',
+    nombre: 'Tubería de reemplazo',
+    espacioId: '10000000-0000-0000-0000-000000000010',
+    descripcion: 'Tubería preparada para una reparación.',
+  };
+
+  it('rechaza un código vacío', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    await expect(
+      servicio.crearTuberia({ ...tuberia, codigo: '  ' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(postgres.consultar).not.toHaveBeenCalled();
+  });
+
+  it('registra una tubería activa sin conexiones', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockResolvedValue({ rows: [] });
+
+    const resultado = await servicio.crearTuberia({
+      ...tuberia,
+      codigo: ' tub-15 ',
+    });
+
+    expect(resultado).toEqual({
+      componenteId: expect.any(String),
+      codigo: 'TUB-15',
+      nombre: tuberia.nombre,
+      tipo: 'TUBERIA',
+      estado: 'ACTIVO',
+    });
+
+    expect(postgres.consultar).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO aquasense.componente'),
+      [
+        resultado.componenteId,
+        'TUB-15',
+        tuberia.nombre,
+        tuberia.espacioId,
+        tuberia.descripcion,
+      ],
+    );
+  });
+
+  it('informa cuando el espacio no existe', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockRejectedValue({ code: '23503' });
+
+    await expect(
+      servicio.crearTuberia(tuberia),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('informa cuando el código ya existe', async () => {
+    const { servicio, postgres } = crearServicio();
+
+    postgres.consultar.mockRejectedValue({ code: '23505' });
+
+    await expect(
+      servicio.crearTuberia(tuberia),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+});

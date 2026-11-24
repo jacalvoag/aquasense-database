@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { ComponentesService } from './componentes.service.js';
 
 @Controller('componentes')
@@ -13,5 +13,10 @@ export class ComponentesController {
   @Get(':componenteId/espacios-afectados')
   espaciosAfectados(@Param('componenteId') componenteId: string) {
     return this.componentes.espaciosAfectados(componenteId);
+  }
+
+  @Post('tuberias')
+  crearTuberia(@Body() entrada: unknown) {
+    return this.componentes.crearTuberia(entrada);
   }
 }
