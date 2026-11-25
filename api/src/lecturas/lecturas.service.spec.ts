@@ -1,3 +1,4 @@
+import { LecturasRepository } from './lecturas.repository.js';
 import {
   BadRequestException,
   NotFoundException,
@@ -21,7 +22,7 @@ function crearServicio() {
   };
 
   const servicio = new LecturasService(
-    postgres as unknown as PostgresService,
+    new LecturasRepository(postgres as unknown as PostgresService),
   );
 
   return { servicio, postgres };
@@ -95,9 +96,9 @@ describe('LecturasService.registrar', () => {
 
     postgres.consultar.mockRejectedValue({ code: '23503' });
 
-    await expect(
-      servicio.registrar(lectura),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(servicio.registrar(lectura)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('informa cuando la lectura incumple las reglas del medidor', async () => {
@@ -105,8 +106,8 @@ describe('LecturasService.registrar', () => {
 
     postgres.consultar.mockRejectedValue({ code: '23514' });
 
-    await expect(
-      servicio.registrar(lectura),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(servicio.registrar(lectura)).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
   });
 });

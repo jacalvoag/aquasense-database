@@ -1,7 +1,6 @@
 import { Body, Controller, Get, Param, Post, HttpCode } from '@nestjs/common';
 import { ReportesService } from './reportes.service.js';
 
-
 @Controller('reportes')
 export class ReportesController {
   constructor(private readonly reportes: ReportesService) {}
@@ -36,18 +35,18 @@ export class ReportesController {
   }
 
   @Post(':reporteId/reemplazo')
-reemplazarTuberia(
-  @Param('reporteId') reporteId: string,
-  @Body() entrada: unknown,
-) {
-  return this.reportes.reemplazarTuberia(reporteId, entrada);
-}
+  reemplazarTuberia(
+    @Param('reporteId') reporteId: string,
+    @Body() entrada: unknown,
+  ) {
+    return this.reportes.reemplazarTuberia(reporteId, entrada);
+  }
 
-@Get(':reporteId/eventos/:eventoId')
-consultarEvento(
-  @Param('reporteId') reporteId: string,
-  @Param('eventoId') eventoId: string,
-) {
-  return this.reportes.consultarEvento(reporteId, eventoId);
-}
+  @Get(':reporteId/eventos/:eventoId')
+  consultarEvento(
+    @Param('reporteId') reporteId: string,
+    @Param('eventoId') eventoId: string,
+  ) {
+    return this.reportes.consultarEvento(reporteId, eventoId);
+  }
 }

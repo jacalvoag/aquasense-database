@@ -1,3 +1,4 @@
+import { ReportesRepository } from './reportes.repository.js';
 import {
   BadRequestException,
   ConflictException,
@@ -23,7 +24,7 @@ function crearServicio() {
   };
 
   const servicio = new ReportesService(
-    postgres as unknown as PostgresService,
+    new ReportesRepository(postgres as unknown as PostgresService),
     mongodb as unknown as MongodbService,
   );
 
@@ -57,17 +58,17 @@ describe('ReportesService.consultarExpediente', () => {
       const { servicio, postgres, mongodb } = crearServicio();
 
       postgres.consultar.mockResolvedValue({
-        rows: [{
-          reporte_id: reporteId,
-          secuencia_documental: '4',
-          evento_id: eventoId,
-          estado_evento: estado,
-        }],
+        rows: [
+          {
+            reporte_id: reporteId,
+            secuencia_documental: '4',
+            evento_id: eventoId,
+            estado_evento: estado,
+          },
+        ],
       });
 
-      await expect(
-        servicio.consultarExpediente(reporteId),
-      ).resolves.toEqual({
+      await expect(servicio.consultarExpediente(reporteId)).resolves.toEqual({
         reporteId,
         estadoDocumental: estado,
         expediente: null,
@@ -81,12 +82,14 @@ describe('ReportesService.consultarExpediente', () => {
     const { servicio, postgres, mongodb } = crearServicio();
 
     postgres.consultar.mockResolvedValue({
-      rows: [{
-        reporte_id: reporteId,
-        secuencia_documental: '4',
-        evento_id: eventoId,
-        estado_evento: 'PROCESADO',
-      }],
+      rows: [
+        {
+          reporte_id: reporteId,
+          secuencia_documental: '4',
+          evento_id: eventoId,
+          estado_evento: 'PROCESADO',
+        },
+      ],
     });
 
     mongodb.buscarExpediente.mockResolvedValue({
@@ -96,9 +99,7 @@ describe('ReportesService.consultarExpediente', () => {
       atenciones: [],
     });
 
-    await expect(
-      servicio.consultarExpediente(reporteId),
-    ).resolves.toEqual({
+    await expect(servicio.consultarExpediente(reporteId)).resolves.toEqual({
       reporteId,
       estadoDocumental: 'PROCESADO',
       expediente: {
@@ -114,12 +115,14 @@ describe('ReportesService.consultarExpediente', () => {
     const { servicio, postgres, mongodb } = crearServicio();
 
     postgres.consultar.mockResolvedValue({
-      rows: [{
-        reporte_id: reporteId,
-        secuencia_documental: '4',
-        evento_id: eventoId,
-        estado_evento: 'PROCESADO',
-      }],
+      rows: [
+        {
+          reporte_id: reporteId,
+          secuencia_documental: '4',
+          evento_id: eventoId,
+          estado_evento: 'PROCESADO',
+        },
+      ],
     });
 
     mongodb.buscarExpediente.mockResolvedValue({
@@ -227,20 +230,13 @@ describe('ReportesService.registrarAtencion', () => {
 
     postgres.consultar.mockResolvedValue({ rows: [] });
 
-    const resultado = await servicio.registrarAtencion(
-      reporteId,
-      inspeccion,
-    );
+    const resultado = await servicio.registrarAtencion(reporteId, inspeccion);
 
     expect(resultado.estadoDocumentalInicial).toBe('PENDIENTE');
 
     expect(postgres.consultar).toHaveBeenCalledWith(
       expect.stringContaining('aquasense.registrar_atencion'),
-      [
-        resultado.eventoId,
-        reporteId,
-        expect.any(String),
-      ],
+      [resultado.eventoId, reporteId, expect.any(String)],
     );
 
     const parametros = postgres.consultar.mock.calls[0][1] as unknown[];
@@ -305,9 +301,9 @@ describe('ReportesService.cerrar', () => {
 
     postgres.consultar.mockRejectedValue({ code: '23503' });
 
-    await expect(
-      servicio.cerrar(reporteId),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(servicio.cerrar(reporteId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('informa cuando el reporte no cumple las reglas para cerrarse', async () => {
@@ -315,9 +311,9 @@ describe('ReportesService.cerrar', () => {
 
     postgres.consultar.mockRejectedValue({ code: '23514' });
 
-    await expect(
-      servicio.cerrar(reporteId),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(servicio.cerrar(reporteId)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 });
 
@@ -348,10 +344,7 @@ describe('ReportesService.reemplazarTuberia', () => {
 
     postgres.consultar.mockResolvedValue({ rows: [] });
 
-    const resultado = await servicio.reemplazarTuberia(
-      reporteId,
-      reemplazo,
-    );
+    const resultado = await servicio.reemplazarTuberia(reporteId, reemplazo);
 
     expect(resultado).toMatchObject({
       reporteId,
@@ -436,16 +429,18 @@ describe('ReportesService.consultarEvento', () => {
     const registradoEn = new Date('2026-11-24T12:00:00Z');
 
     postgres.consultar.mockResolvedValue({
-      rows: [{
-        evento_id: eventoId,
-        destino: 'GRAFO',
-        tipo: 'ACTUALIZAR_RED',
-        estado: 'PENDIENTE',
-        secuencia: '10',
-        intentos: 0,
-        registrado_en: registradoEn,
-        procesado_en: null,
-      }],
+      rows: [
+        {
+          evento_id: eventoId,
+          destino: 'GRAFO',
+          tipo: 'ACTUALIZAR_RED',
+          estado: 'PENDIENTE',
+          secuencia: '10',
+          intentos: 0,
+          registrado_en: registradoEn,
+          procesado_en: null,
+        },
+      ],
     });
 
     await expect(

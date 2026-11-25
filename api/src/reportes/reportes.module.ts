@@ -1,3 +1,4 @@
+import { ReportesRepository } from './reportes.repository.js';
 import { Module } from '@nestjs/common';
 import { PostgresModule } from '../postgres/postgres.module.js';
 import { ReportesController } from './reportes.controller.js';
@@ -7,6 +8,6 @@ import { MongodbModule } from '../mongodb/mongodb.module.js';
 @Module({
   imports: [PostgresModule, MongodbModule],
   controllers: [ReportesController],
-  providers: [ReportesService],
+  providers: [ReportesService, ReportesRepository],
 })
 export class ReportesModule {}

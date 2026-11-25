@@ -1,3 +1,4 @@
+import { ComponentesRepository } from './componentes.repository.js';
 import {
   BadRequestException,
   ConflictException,
@@ -21,7 +22,7 @@ function crearServicio() {
   };
 
   const servicio = new ComponentesService(
-    postgres as unknown as PostgresService,
+    new ComponentesRepository(postgres as unknown as PostgresService),
     neo4j as unknown as Neo4jService,
   );
 
@@ -44,11 +45,13 @@ function grafo(overrides: Record<string, unknown> = {}) {
     estadoRed: 'INICIALIZADO',
     versionRed: '9',
     componenteEncontrado: true,
-    espacios: [{
-      espacioId: '10000000-0000-0000-0000-000000000010',
-      nombre: 'Baños de estudiantes de UD1',
-      tipo: 'BAÑO',
-    }],
+    espacios: [
+      {
+        espacioId: '10000000-0000-0000-0000-000000000010',
+        nombre: 'Baños de estudiantes de UD1',
+        tipo: 'BAÑO',
+      },
+    ],
     ...overrides,
   };
 }
@@ -133,9 +136,7 @@ describe('ComponentesService.espaciosAfectados', () => {
     postgres.consultar.mockResolvedValue({ rows: [estado()] });
     neo4j.consultarEspaciosAlcanzables.mockResolvedValue(grafo());
 
-    await expect(
-      servicio.espaciosAfectados(componenteId),
-    ).resolves.toEqual({
+    await expect(servicio.espaciosAfectados(componenteId)).resolves.toEqual({
       componenteId,
       codigo: 'TUB-02',
       versionRed: '9',
@@ -197,9 +198,9 @@ describe('ComponentesService.crearTuberia', () => {
 
     postgres.consultar.mockRejectedValue({ code: '23503' });
 
-    await expect(
-      servicio.crearTuberia(tuberia),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(servicio.crearTuberia(tuberia)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('informa cuando el código ya existe', async () => {
@@ -207,9 +208,9 @@ describe('ComponentesService.crearTuberia', () => {
 
     postgres.consultar.mockRejectedValue({ code: '23505' });
 
-    await expect(
-      servicio.crearTuberia(tuberia),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(servicio.crearTuberia(tuberia)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 });
 
@@ -218,13 +219,15 @@ describe('ComponentesService.listar', () => {
     const { servicio, postgres } = crearServicio();
 
     postgres.consultar.mockResolvedValue({
-      rows: [{
-        componente_id: '20000000-0000-0000-0000-000000000021',
-        codigo: 'TUB-15',
-        tipo: 'TUBERIA',
-        estado: 'ACTIVO',
-        tiene_conexiones: false,
-      }],
+      rows: [
+        {
+          componente_id: '20000000-0000-0000-0000-000000000021',
+          codigo: 'TUB-15',
+          tipo: 'TUBERIA',
+          estado: 'ACTIVO',
+          tiene_conexiones: false,
+        },
+      ],
     });
 
     await expect(servicio.listar()).resolves.toEqual([
