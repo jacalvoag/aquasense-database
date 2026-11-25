@@ -142,7 +142,15 @@ se aplicó en la base de destino.
   PostgreSQL, MongoDB y Neo4j.
 - Revisar la reconstrucción de tablas, restricciones e índices de
   PostgreSQL, además de las funciones y los triggers ya comparados.
-- Definir las operaciones necesarias para cambios de espacios y
-  componentes, y el control de acceso a las escrituras.
+- La edición general de espacios y componentes queda fuera del prototipo
+  actual. Las escrituras de la API requieren una credencial de operador local;
+  consulta [api/README.md](api/README.md).
 - Verificar el flujo completo desde la API, incluida la creación y el
   reemplazo de una tubería y la consulta del estado de ambos eventos.
+
+## Contrato para integración
+
+Las rutas, respuestas, credencial de operador y flujo de sincronización están
+en [docs/api/contrato.md](docs/api/contrato.md). El prototipo local permite
+consultas públicas y escrituras de un único operador de mantenimiento.
+La entrega del frontend y la validación integral permanecen pendientes.

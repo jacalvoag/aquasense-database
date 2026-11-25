@@ -249,3 +249,50 @@ con PostgreSQL, MongoDB, Neo4j y el sincronizador.
 
 La API se ha probado localmente con las bases de reconstrucción. El
 frontend y la comprobación final del flujo completo están pendientes.
+
+## Acceso de operador y navegador
+
+Las consultas GET son de lectura y no requieren credenciales. Todas las escrituras
+requieren HTTP Basic con la credencial de operador definida en `.env`:
+
+```dotenv
+API_OPERATOR_USER=operador
+API_OPERATOR_PASSWORD=coloca-una-clave-propia
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+PORT=3000
+```
+
+La API rechaza el inicio si falta la credencial o se deja la clave `CAMBIAR`.
+Actualiza tu `.env` existente: no se reemplaza automáticamente al actualizar Git.
+Esta credencial representa al único operador de mantenimiento del prototipo local.
+No hay registro de usuarios, sesiones ni roles individuales. Las consultas son
+públicas dentro del entorno local. HTTP Basic debe usarse con HTTPS si se expone
+fuera de ese entorno. CORS limita los orígenes del navegador y no sustituye la
+credencial de escritura. La API sigue escuchando en `127.0.0.1`.
+
+En PowerShell, prepara la cabecera sin escribir la clave en el código:
+
+```powershell
+$credencial = Get-Credential -UserName operador
+$texto = $credencial.UserName + ':' + $credencial.GetNetworkCredential().Password
+$token = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($texto))
+$cabeceras = @{ Authorization = "Basic $token" }
+# Agrega -Headers $cabeceras a las solicitudes POST de Invoke-RestMethod.
+```
+
+Consulta el [contrato completo](../docs/api/contrato.md) para las entradas,
+respuestas y errores. Las tuberías sin conexiones responden `409` al consultar
+espacios afectados; esto distingue un componente preparado de un fallo de Neo4j.
+
+## Comprobaciones de desarrollo
+
+```powershell
+npm test
+npm run test:e2e
+npm run build
+npm run lint
+```
+
+`test:e2e` comprueba las rutas HTTP, inyección de módulos, autorización y CORS con
+los drivers sustituidos. No requiere credenciales reales y no escribe en las bases.
+La validación integral con las tres bases y el sincronizador debe ejecutarse aparte.
