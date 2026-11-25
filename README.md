@@ -1,4 +1,11 @@
-# AquaSense — Preparación de las bases de datos
+# AquaSense
+
+Prototipo académico para consultar la red de agua de un campus, capturar
+lecturas manuales y dar seguimiento a reportes de mantenimiento.
+
+- [Instalación y demostración local](docs/ejecucion-local.md)
+- [Matriz de pruebas y medición de consultas](docs/validacion.md)
+- [Frontend](frontend/README.md)
 
 ## Alcance
 
@@ -135,6 +142,8 @@ se aplicó en la base de destino.
   fallos, la reactivación de eventos y la selección ordenada de eventos.
 - Se implementó una API para el escenario del campus. Sus rutas y
   configuración se describen en [api/README.md](api/README.md).
+- La interfaz permite registrar lecturas, atender reportes y consultar el
+  alcance aguas abajo. Se comprobó el flujo de reemplazo con los tres motores.
 
 ### Pendiente
 
@@ -145,12 +154,9 @@ se aplicó en la base de destino.
 - La edición general de espacios y componentes queda fuera del prototipo
   actual. Las escrituras de la API requieren una credencial de operador local;
   consulta [api/README.md](api/README.md).
-- Verificar el flujo completo desde la API, incluida la creación y el
-  reemplazo de una tubería y la consulta del estado de ambos eventos.
 
 ## Contrato para integración
 
 Las rutas, respuestas, credencial de operador y flujo de sincronización están
 en [docs/api/contrato.md](docs/api/contrato.md). El prototipo local permite
 consultas públicas y escrituras de un único operador de mantenimiento.
-La entrega del frontend y la validación integral permanecen pendientes.

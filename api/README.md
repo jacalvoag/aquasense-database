@@ -247,8 +247,7 @@ con PostgreSQL, MongoDB, Neo4j y el sincronizador.
 
 ## Estado de la integración
 
-La API se ha probado localmente con las bases de reconstrucción. El
-frontend y la comprobación final del flujo completo están pendientes.
+La API, la interfaz y el sincronizador se probaron juntos con las tres bases. Consulta los [resultados de la validación](../docs/validacion.md).
 
 ## Acceso de operador y navegador
 

@@ -16,7 +16,10 @@ export class ReportesRepository {
         r.registrado_en,
         r.actualizado_en,
         r.cerrado_en,
-        evento.estado AS estado_evento_documental
+        evento.evento_id AS evento_documental_id,
+        evento.estado AS estado_evento_documental,
+        grafo.evento_id AS evento_grafo_id,
+        grafo.estado AS estado_evento_grafo
       FROM aquasense.reporte AS r
       JOIN aquasense.espacio AS espacio
         ON espacio.espacio_id = r.espacio_id
@@ -24,6 +27,14 @@ export class ReportesRepository {
         ON evento.reporte_id = r.reporte_id
        AND evento.destino = 'DOCUMENTAL'
        AND evento.secuencia = r.secuencia_documental
+      LEFT JOIN LATERAL (
+        SELECT e.evento_id, e.estado
+        FROM aquasense.evento_salida e
+        WHERE e.destino = 'GRAFO'
+          AND e.datos -> 'cambio' ->> 'reporteId' = r.reporte_id::text
+        ORDER BY (e.estado <> 'PROCESADO') DESC, e.secuencia DESC
+        LIMIT 1
+      ) AS grafo ON true
       ORDER BY r.registrado_en DESC, r.reporte_id
     `);
   }

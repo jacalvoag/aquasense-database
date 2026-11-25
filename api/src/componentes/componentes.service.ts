@@ -29,6 +29,42 @@ export class ComponentesService {
   }
 
   async espaciosAfectados(componenteId: string) {
+    const { id, codigo, grafo } = await this.consultarComponente(
+      componenteId,
+      (id) => this.neo4j.consultarEspaciosAlcanzables(id),
+    );
+    return { componenteId: id, codigo, versionRed: grafo.versionRed, espacios: grafo.espacios };
+  }
+
+  async alcance(componenteId: string) {
+    const { id, grafo } = await this.consultarComponente(
+      componenteId,
+      (id) => this.neo4j.consultarRed(id),
+    );
+    return {
+      componenteId: id,
+      versionRed: grafo.versionRed,
+      nodoIds: grafo.nodos.map((nodo) => nodo.id),
+      conexionIds: grafo.conexiones.map((conexion) => conexion.id),
+      espacios: grafo.espacios,
+    };
+  }
+
+  async snapshotRed() {
+    const consultarEstado = async () =>
+      (await this.repositorio.consultarControlRed()).rows[0];
+    const inicial = await consultarEstado();
+    this.comprobarControl(inicial);
+    const grafo = await this.leerGrafo(() => this.neo4j.consultarRed());
+    this.comprobarGrafo(grafo, inicial.version_red);
+    this.comprobarControlFinal(await consultarEstado(), inicial.version_red);
+    return { versionRed: grafo.versionRed, nodos: grafo.nodos, conexiones: grafo.conexiones };
+  }
+
+  private async consultarComponente<T extends EstadoGrafo & { componenteEncontrado: boolean }>(
+    componenteId: string,
+    consultarGrafo: (id: string) => Promise<T>,
+  ) {
     const formatoUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -55,54 +91,41 @@ export class ComponentesService {
       );
     }
 
-    if (inicial.version_red == null || inicial.eventos_sin_procesar) {
+    this.comprobarControl(inicial);
+    const grafo = await this.leerGrafo(() => consultarGrafo(id));
+    this.comprobarGrafo(grafo, inicial.version_red);
+    const final = await this.consultarEstado(id);
+
+    this.comprobarControlFinal(final?.estado === 'ACTIVO' ? final : undefined, inicial.version_red);
+    return { id, codigo: inicial.codigo, grafo };
+  }
+
+  private comprobarControl(control: ControlRed | undefined) {
+    if (control?.version_red == null || control.eventos_sin_procesar) {
       throw new ServiceUnavailableException(
         'La red tiene cambios pendientes o su control no está disponible.',
       );
     }
+  }
 
-    let grafo: Awaited<
-      ReturnType<Neo4jService['consultarEspaciosAlcanzables']>
-    >;
+  private comprobarControlFinal(control: ControlRed | undefined, version: string) {
+    if (control?.version_red !== version || control.eventos_sin_procesar) {
+      throw new ServiceUnavailableException('La red cambió durante la consulta. Inténtalo nuevamente.');
+    }
+  }
 
+  private comprobarGrafo(grafo: EstadoGrafo, version: string) {
+    if (grafo.estadoRed !== 'INICIALIZADO' || grafo.versionRed !== version || grafo.componenteEncontrado === false) {
+      throw new ServiceUnavailableException('El grafo no coincide con el estado de la red en PostgreSQL.');
+    }
+  }
+
+  private async leerGrafo<T>(consultar: () => Promise<T>): Promise<T> {
     try {
-      grafo = await this.neo4j.consultarEspaciosAlcanzables(id);
+      return await consultar();
     } catch {
-      throw new ServiceUnavailableException(
-        'No fue posible consultar la red en Neo4j.',
-      );
+      throw new ServiceUnavailableException('No fue posible consultar la red en Neo4j.');
     }
-
-    if (
-      grafo.estadoRed !== 'INICIALIZADO' ||
-      grafo.versionRed !== inicial.version_red ||
-      !grafo.componenteEncontrado
-    ) {
-      throw new ServiceUnavailableException(
-        'El grafo no coincide con el estado de la red en PostgreSQL.',
-      );
-    }
-
-    // Volver a revisar PostgreSQL por si cambió durante la consulta.
-    const final = await this.consultarEstado(id);
-
-    if (
-      !final ||
-      final.estado !== 'ACTIVO' ||
-      final.eventos_sin_procesar ||
-      final.version_red !== inicial.version_red
-    ) {
-      throw new ServiceUnavailableException(
-        'La red cambió durante la consulta. Inténtalo nuevamente.',
-      );
-    }
-
-    return {
-      componenteId: id,
-      codigo: inicial.codigo,
-      versionRed: grafo.versionRed,
-      espacios: grafo.espacios,
-    };
   }
 
   async crearTuberia(entrada: unknown) {
@@ -193,4 +216,15 @@ export class ComponentesService {
       estado: 'ACTIVO',
     };
   }
+}
+
+interface ControlRed {
+  version_red?: string | null;
+  eventos_sin_procesar: boolean;
+}
+
+interface EstadoGrafo {
+  estadoRed: string;
+  versionRed: string | null;
+  componenteEncontrado?: boolean;
 }

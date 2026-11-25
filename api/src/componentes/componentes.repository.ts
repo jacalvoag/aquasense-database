@@ -56,6 +56,18 @@ EXISTS (
     );
   }
 
+  consultarControlRed() {
+    return this.postgres.consultar(`
+      SELECT version_red::text,
+             EXISTS (
+               SELECT 1 FROM aquasense.evento_salida
+               WHERE destino = 'GRAFO' AND estado <> 'PROCESADO'
+             ) AS eventos_sin_procesar
+      FROM aquasense.control_red
+      WHERE control_id = 1
+    `);
+  }
+
   crearTuberia(parametros: unknown[]) {
     return this.postgres.consultar(
       `

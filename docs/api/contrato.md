@@ -29,10 +29,29 @@ consultar el estado antes de decidir otro envío. Deshabilitar el botón mientra
 | `/espacios` | Lista: espacio_id, nombre, tipo, espacio_contenedor_id, descripcion. |
 | `/componentes` | Lista: componente_id, codigo, nombre, tipo, estado, espacio_id, espacio_nombre, descripcion, tiene_conexiones. |
 | `/lecturas` | Lista: lectura_id, medidor_id, codigo_medidor, fecha_hora_anterior, fecha_hora, valor_anterior, valor_acumulado, consumo_m3. Primera lectura: consumo y valores anteriores null. |
-| `/reportes` | Lista: reporte_id, espacio_id, espacio_nombre, estado, secuencia_documental, registrado_en, actualizado_en, cerrado_en, estado_evento_documental. |
+| `/reportes` | Lista: reporte_id, espacio_id, espacio_nombre, estado, secuencia_documental, registrado_en, actualizado_en, cerrado_en, evento_documental_id, estado_evento_documental, evento_grafo_id, estado_evento_grafo. El evento de grafo prioriza uno sin procesar; si todos están confirmados, muestra el último. Sus campos son null si el reporte no tiene eventos de grafo. |
 | `/reportes/:id/expediente` | `{reporteId, estadoDocumental, expediente}`. PENDIENTE o ERROR: expediente null. PROCESADO: expediente y atenciones de MongoDB, verificados contra la secuencia y evento de PostgreSQL. |
 | `/reportes/:id/eventos/:eventoId` | `{reporteId, eventoId, destino, tipo, estado, secuencia, intentos, registradoEn, procesadoEn}`. Solo devuelve eventos vinculados al reporte. |
 | `/componentes/:id/espacios-afectados` | `{componenteId, codigo, versionRed, espacios:[{espacioId,nombre,tipo}]}`. Requiere componente activo y red sincronizada. Tubería sin conexiones: 409. |
+| `/red` | `{versionRed, nodos, conexiones}`. Red instalada de componentes activos conectados y espacios abastecidos. |
+| `/red/componentes/:componenteId/alcance` | `{componenteId, versionRed, nodoIds, conexionIds, espacios:[{espacioId,nombre,tipo}]}`. Alcance dirigido aguas abajo. |
+
+Cada nodo de `/red` tiene `id`, `clase` (`COMPONENTE` o `ESPACIO`), `entidadId`,
+`nombre` y `tipo`. Los componentes además incluyen `codigo`, `estado` y
+`espacioId` (ubicación o `null`). La ubicación no indica abastecimiento.
+El identificador del nodo lleva el prefijo `c:` o `e:` seguido del UUID.
+Cada conexión contiene `{id, origen, destino}`. El `id` es el UUID de la
+conexión y los extremos corresponden a IDs del listado de nodos.
+
+El alcance incluye el componente seleccionado, los ramales aguas abajo aunque
+no lleguen a un espacio y los espacios alcanzados. La consulta devuelve 400
+para UUID inválido, 404 para componente inexistente y 409 para componente
+retirado o tubería sin conexiones. Una red sincronizada sin conexiones
+devuelve listados vacíos. Ambas rutas devuelven 503 si el grafo no está
+disponible, faltan sus controles, difiere la versión, existen eventos de grafo
+pendientes o con error, o cambia la versión durante la consulta.
+`versionRed` se devuelve como texto. Aplica el alcance sobre una red dibujada
+solo cuando ambas respuestas tienen la misma versión.
 
 Los espacios afectados se obtienen por conectividad del grafo. No representan
 simulaciones hidráulicas ni prueban por sí solos una fuga real.
@@ -106,6 +125,4 @@ el flujo integrado. El cierre SQL valida lo documental, no la confirmación de t
 6. Registrar verificación SIN_INDICIOS, esperar confirmación y cerrar el reporte.
 7. Consultar listado de reportes y expediente. Conservar IDs y evidencia de la prueba.
 
-El escenario usa datos académicos ficticios. Preparar las bases desde el README raíz
-y ejecutar una sola instancia del sincronizador. Las pruebas contra bases reales,
-rendimiento y frontend son parte de la validación final pendiente.
+El escenario usa datos académicos ficticios. Sigue la [guía local](../ejecucion-local.md) y ejecuta una sola instancia del sincronizador. Consulta el [informe de validación](../validacion.md).

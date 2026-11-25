@@ -21,6 +21,7 @@ import { configurarHttp } from '../src/common/configurar-http.js';
 describe('Contrato HTTP de la API', () => {
   let app: INestApplication;
   const consultar = vi.fn();
+  const consultarRed = vi.fn();
   const id = '50000000-0000-0000-0000-000000000001';
   const espacio = '10000000-0000-0000-0000-000000000010';
   beforeAll(async () => {
@@ -40,6 +41,7 @@ describe('Contrato HTTP de la API', () => {
       .overrideProvider(Neo4jService)
       .useValue({
         consultarEspaciosAlcanzables: vi.fn(),
+        consultarRed,
         comprobarConexion: vi.fn(),
       })
       .compile();
@@ -50,12 +52,66 @@ describe('Contrato HTTP de la API', () => {
   beforeEach(() => {
     consultar.mockReset();
     consultar.mockResolvedValue({ rows: [] });
+    consultarRed.mockReset();
   });
   afterAll(async () => {
     await app?.close();
   });
   it('permite consultar espacios sin credenciales', async () => {
     await request(app.getHttpServer()).get('/espacios').expect(200);
+  });
+  it('distingue una red sincronizada sin conexiones de un error', async () => {
+    const versionRed = '9007199254740993';
+    consultar.mockResolvedValue({
+      rows: [{ version_red: versionRed, eventos_sin_procesar: false }],
+    });
+    consultarRed.mockResolvedValue({
+      estadoRed: 'INICIALIZADO', versionRed, nodos: [], conexiones: [],
+    });
+
+    await request(app.getHttpServer()).get('/red').expect(200, {
+      versionRed, nodos: [], conexiones: [],
+    });
+    expect(consultar).toHaveBeenCalledTimes(2);
+  });
+  it('no consulta Neo4j mientras existan cambios de red sin procesar', async () => {
+    consultar.mockResolvedValue({
+      rows: [{ version_red: '0', eventos_sin_procesar: true }],
+    });
+    await request(app.getHttpServer()).get('/red').expect(503);
+    expect(consultarRed).not.toHaveBeenCalled();
+  });
+  it('rechaza el snapshot cuando PostgreSQL cambia durante la consulta', async () => {
+    consultar
+      .mockResolvedValueOnce({ rows: [{ version_red: '0', eventos_sin_procesar: false }] })
+      .mockResolvedValueOnce({ rows: [{ version_red: '1', eventos_sin_procesar: true }] });
+    consultarRed.mockResolvedValue({
+      estadoRed: 'INICIALIZADO', versionRed: '0', nodos: [], conexiones: [],
+    });
+    await request(app.getHttpServer()).get('/red').expect(503);
+  });
+  it('valida el UUID del alcance antes de consultar las bases', async () => {
+    await request(app.getHttpServer()).get('/red/componentes/invalido/alcance').expect(400);
+    expect(consultar).not.toHaveBeenCalled();
+  });
+  it('devuelve únicamente los IDs y espacios del alcance', async () => {
+    consultar.mockResolvedValue({
+      rows: [{
+        estado: 'ACTIVO', tipo: 'TUBERIA', tiene_conexiones: true,
+        version_red: '0', eventos_sin_procesar: false,
+      }],
+    });
+    const espacios = [{ espacioId: espacio, nombre: 'Baños', tipo: 'BAÑO' }];
+    consultarRed.mockResolvedValue({
+      estadoRed: 'INICIALIZADO', versionRed: '0', componenteEncontrado: true,
+      nodos: [{ id: `c:${id}` }, { id: `e:${espacio}` }],
+      conexiones: [{ id: 'conexion' }], espacios,
+    });
+    await request(app.getHttpServer()).get(`/red/componentes/${id}/alcance`).expect(200, {
+      componenteId: id, versionRed: '0', nodoIds: [`c:${id}`, `e:${espacio}`],
+      conexionIds: ['conexion'], espacios,
+    });
+    expect(consultarRed).toHaveBeenCalledWith(id);
   });
   it('rechaza escritura anónima antes de consultar PostgreSQL', async () => {
     await request(app.getHttpServer()).post('/reportes').send({}).expect(401);
