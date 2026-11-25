@@ -1,3 +1,4 @@
+import { fechaValida } from '../common/fecha.js';
 import { ReportesRepository } from './reportes.repository.js';
 import {
   BadRequestException,
@@ -162,9 +163,6 @@ export class ReportesService {
     const formatoUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-    const formatoFecha =
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
-
     if (!formatoUuid.test(reporteId)) {
       throw new BadRequestException(
         'El identificador del reporte no es válido.',
@@ -185,11 +183,7 @@ export class ReportesService {
       throw new BadRequestException('El tipo de atención no es válido.');
     }
 
-    if (
-      typeof datos.fecha !== 'string' ||
-      !formatoFecha.test(datos.fecha) ||
-      Number.isNaN(Date.parse(datos.fecha))
-    ) {
+    if (!fechaValida(datos.fecha)) {
       throw new BadRequestException(
         'La fecha debe incluir fecha, hora y zona horaria.',
       );
@@ -338,9 +332,6 @@ export class ReportesService {
     const formatoUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-    const formatoFecha =
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
-
     if (!formatoUuid.test(reporteId)) {
       throw new BadRequestException(
         'El identificador del reporte no es válido.',
@@ -373,11 +364,7 @@ export class ReportesService {
       );
     }
 
-    if (
-      typeof datos.fecha !== 'string' ||
-      !formatoFecha.test(datos.fecha) ||
-      Number.isNaN(Date.parse(datos.fecha))
-    ) {
+    if (!fechaValida(datos.fecha)) {
       throw new BadRequestException(
         'La fecha debe incluir fecha, hora y zona horaria.',
       );

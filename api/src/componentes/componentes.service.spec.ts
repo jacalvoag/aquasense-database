@@ -242,3 +242,16 @@ describe('ComponentesService.listar', () => {
     );
   });
 });
+
+describe('Tubería preparada', () => {
+  it('devuelve conflicto sin consultar Neo4j para una tubería sin conexiones', async () => {
+    const { servicio, postgres, neo4j } = crearServicio();
+    postgres.consultar.mockResolvedValue({
+      rows: [estado({ tipo: 'TUBERIA', tiene_conexiones: false })],
+    });
+    await expect(
+      servicio.espaciosAfectados(componenteId),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(neo4j.consultarEspaciosAlcanzables).not.toHaveBeenCalled();
+  });
+});

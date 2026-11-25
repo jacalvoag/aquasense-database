@@ -1,3 +1,6 @@
+import { APP_GUARD, APP_FILTER } from '@nestjs/core';
+import { EscrituraGuard } from './common/escritura.guard.js';
+import { PersistenciaFilter } from './common/persistencia.filter.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller.js';
@@ -19,9 +22,13 @@ import { Neo4jModule } from './neo4j/neo4j.module.js';
     LecturasModule,
     ReportesModule,
     MongodbModule,
-    Neo4jModule
+    Neo4jModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: EscrituraGuard },
+    { provide: APP_FILTER, useClass: PersistenciaFilter },
+  ],
 })
 export class AppModule {}

@@ -1,3 +1,4 @@
+import { fechaValida } from '../common/fecha.js';
 import {
   BadRequestException,
   Injectable,
@@ -39,15 +40,9 @@ export class LecturasService {
       );
     }
 
-    if (
-      typeof datos.fechaHora !== 'string' ||
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(
-        datos.fechaHora,
-      ) ||
-      Number.isNaN(Date.parse(datos.fechaHora))
-    ) {
+    if (!fechaValida(datos.fechaHora)) {
       throw new BadRequestException(
-        'La fecha debe estar en formato ISO 8601 e incluir zona horaria.',
+        'La fecha debe ser válida e incluir zona horaria.',
       );
     }
 

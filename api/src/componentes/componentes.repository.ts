@@ -36,6 +36,8 @@ EXISTS (
         componente.componente_id,
         componente.codigo,
         componente.estado,
+        componente.tipo,
+        EXISTS (SELECT 1 FROM aquasense.conexion c WHERE c.componente_origen_id = componente.componente_id OR c.componente_destino_id = componente.componente_id) AS tiene_conexiones,
         (
           SELECT version_red
           FROM aquasense.control_red

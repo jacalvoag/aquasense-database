@@ -49,6 +49,12 @@ export class ComponentesService {
       throw new ConflictException('El componente no está activo.');
     }
 
+    if (inicial.tipo === 'TUBERIA' && inicial.tiene_conexiones === false) {
+      throw new ConflictException(
+        'La tubería no tiene conexiones de agua. Todavía no permite consultar espacios afectados.',
+      );
+    }
+
     if (inicial.version_red == null || inicial.eventos_sin_procesar) {
       throw new ServiceUnavailableException(
         'La red tiene cambios pendientes o su control no está disponible.',
@@ -143,6 +149,10 @@ export class ComponentesService {
 
     const componenteId = randomUUID();
     const codigo = datos.codigo.trim().toUpperCase();
+    if (codigo.length > 40)
+      throw new BadRequestException(
+        'El código normalizado supera 40 caracteres.',
+      );
     const nombre = datos.nombre.trim();
 
     try {
