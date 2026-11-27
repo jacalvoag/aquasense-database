@@ -7,6 +7,9 @@ import type { FormEvent } from 'react'
 import { Componentes, Espacios, Lecturas } from './paginas/Catalogos'
 import { NuevoReporte, ReporteDetalle, Reportes } from './paginas/Reportes'
 import { Red } from './paginas/Red'
+import type { Componente, Lectura, Reporte } from './api/dominio'
+import { fechaLocal, useConsulta } from './operaciones'
+import { Aviso, EstadoLista } from './ui'
 
 const secciones = [
   { ruta: '/reportes', nombre: 'Reportes', descripcion: 'Seguimiento de mantenimiento', icono: FileText },
@@ -25,6 +28,26 @@ const servicios = [
 function Inicio() {
   const [intento, setIntento] = useState(0)
   const [estados, setEstados] = useState<boolean[] | null>(null)
+  const reportes = useConsulta<Reporte[]>('/reportes')
+  const componentes = useConsulta<Componente[]>('/componentes')
+  const lecturas = useConsulta<Lectura[]>('/lecturas')
+  const ultimaLectura = lecturas.datos?.reduce<Lectura | null>((ultima, lectura) =>
+    !ultima || Date.parse(lectura.fecha_hora) > Date.parse(ultima.fecha_hora) ? lectura : ultima, null)
+  const metricas = [
+    { clave: 'pendientes', titulo: 'Reportes pendientes', ruta: '/reportes', cargando: reportes.cargando,
+      valor: reportes.error ? undefined : reportes.datos?.filter((r) => r.estado === 'PENDIENTE').length },
+    { clave: 'atencion', titulo: 'Reportes en atención', ruta: '/reportes', cargando: reportes.cargando,
+      valor: reportes.error ? undefined : reportes.datos?.filter((r) => r.estado === 'EN_ATENCION').length },
+    { clave: 'activos', titulo: 'Componentes activos', ruta: '/componentes', cargando: componentes.cargando,
+      valor: componentes.error ? undefined : componentes.datos?.filter((c) => c.estado === 'ACTIVO').length },
+  ]
+  function actualizarDatos() {
+    reportes.recargar()
+    componentes.recargar()
+    lecturas.recargar()
+    setEstados(null)
+    setIntento((actual) => actual + 1)
+  }
   useEffect(() => {
     const control = new AbortController()
     void Promise.allSettled(servicios.map(({ ruta }) =>
@@ -40,9 +63,27 @@ function Inicio() {
     <>
       <header className="cabecera inicio-cabecera">
         <p className="campus">Campus UPChiapas <span> / </span> Inicio</p>
-        <h1>Red de agua</h1>
-        <p>Consulta la red y da seguimiento al mantenimiento del campus.</p>
+        <h1>Operación de la red de agua</h1>
+        <p>Consulta las lecturas y da seguimiento al mantenimiento del campus.</p>
       </header>
+      <section className="resumen-inicio" aria-labelledby="resumen-titulo">
+        <div className="fila resumen-cabecera">
+          <div><span className="eyebrow">VISTA GENERAL</span><h2 id="resumen-titulo">Estado de la operación</h2></div>
+          <button type="button" onClick={actualizarDatos}
+            disabled={reportes.cargando || componentes.cargando || lecturas.cargando}>Actualizar datos</button>
+        </div>
+        <div className="resumen-metricas">
+          {metricas.map((metrica) => <NavLink className="resumen-metrica" key={metrica.clave}
+            data-metrica={metrica.clave} to={metrica.ruta} aria-busy={metrica.cargando}>
+            <span>{metrica.titulo}</span>
+            <strong aria-live="polite">{metrica.cargando ? '…' : metrica.valor ?? '—'}</strong>
+            <small>Ver listado <ArrowUpRight size={14} aria-hidden="true" /></small>
+          </NavLink>)}
+        </div>
+        {(reportes.error || componentes.error) &&
+          <Aviso error>Algunas cifras no están disponibles. Comprueba la conexión y actualiza los datos.</Aviso>}
+        <p className="nota-resumen">Cifras obtenidas de los registros actuales. Los componentes activos incluyen las tuberías preparadas para reemplazo.</p>
+      </section>
       <div className="inicio-columnas">
       <section className="inicio-accesos" aria-labelledby="accesos-titulo">
         <div className="seccion-titulo"><div><span className="eyebrow">AQUASENSE</span><h2 id="accesos-titulo">Explorar</h2></div></div>
@@ -55,6 +96,17 @@ function Inicio() {
             </NavLink>
           ))}
         </div>
+        <section className="panel lectura-reciente" aria-labelledby="lectura-titulo">
+          <div className="fila"><h2 id="lectura-titulo">Lectura más reciente</h2><NavLink to="/lecturas">Ver lecturas</NavLink></div>
+          <EstadoLista consulta={lecturas} vacio={lecturas.datos?.length === 0 ? 'Aún no hay lecturas registradas.' : undefined}>
+            {ultimaLectura && <dl className="lectura-resumen">
+              <div><dt>Medidor</dt><dd>{ultimaLectura.codigo_medidor}</dd></div>
+              <div><dt>Fecha de lectura</dt><dd>{fechaLocal(ultimaLectura.fecha_hora)}</dd></div>
+              <div><dt>Acumulado</dt><dd>{ultimaLectura.valor_acumulado} m³</dd></div>
+              <div><dt>Consumo del intervalo</dt><dd>{ultimaLectura.consumo_m3 === null ? 'Sin lectura anterior' : ultimaLectura.consumo_m3 + ' m³'}</dd></div>
+            </dl>}
+          </EstadoLista>
+        </section>
       </section>
       <section className="panel estado-panel" aria-labelledby="estado-titulo">
         <div className="fila">
@@ -106,7 +158,7 @@ function AccesoOperador({ credencial, cambiar }: {
         </>
       ) : (
         <>
-          <button className="acceso-boton" type="button" aria-expanded={abierto} aria-controls="credencial"
+          <button id="acceso-operador" className="acceso-boton" type="button" aria-expanded={abierto} aria-controls="credencial"
             onClick={() => setAbierto((actual) => !actual)}><UserRound size={18} />Acceso de operador</button>
           {abierto && (
             <form id="credencial" className="credencial panel" onSubmit={guardar}>

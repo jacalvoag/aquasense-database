@@ -184,3 +184,28 @@ thead th { background: #f2f7fa; }
   main { padding: 1.4rem 1rem 2rem; }
   .inicio-cabecera { margin-bottom: 2rem; }
 }
+
+/* Resumen operativo de la portada */
+.resumen-inicio { margin-bottom: 2.1rem; }
+.resumen-cabecera { margin-bottom: 1rem; }
+.resumen-metricas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.resumen-metrica { display: grid; gap: .65rem; padding: 1.25rem; border: 1px solid #dce8ee; border-radius: 1rem; background: #fff; text-decoration: none; box-shadow: 0 4px 18px #2a496508; }
+.resumen-metrica > span { color: #536f80; font-size: .86rem; font-weight: 650; }
+.resumen-metrica strong { color: #176f83; font-size: 2.4rem; font-weight: 750; line-height: 1; letter-spacing: -.04em; }
+.resumen-metrica small { display: flex; align-items: center; gap: .25rem; color: #6c8392; font-size: .76rem; }
+.resumen-metrica:hover { border-color: #92bfcd; background: #f8fcfd; }
+.nota-resumen { color: #718593; font-size: .77rem; line-height: 1.5; }
+.lectura-reciente { margin-top: 1rem; }
+.lectura-reciente .fila > a { color: #176f83; font-size: .83rem; }
+.lectura-resumen { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1.1rem 0 0; }
+.lectura-resumen dt { color: #738794; font-size: .76rem; }
+.lectura-resumen dd { margin: .25rem 0 0; color: #274b5c; font-size: .94rem; font-weight: 650; overflow-wrap: anywhere; }
+.ayuda-formulario { color: #597585; font-size: .88rem; line-height: 1.6; }
+.pista-catalogo { display: block; max-width: 12rem; margin-top: .3rem; color: #597585; font-size: .75rem; }
+.aviso a { color: inherit; font-weight: 700; text-underline-offset: 3px; }
+@media (max-width: 37rem) {
+  .resumen-metricas { grid-template-columns: 1fr; gap: .65rem; }
+  .resumen-metrica { grid-template-columns: 1fr auto; align-items: center; padding: 1rem; }
+  .resumen-metrica strong { grid-column: 2; grid-row: 1 / 3; font-size: 2rem; }
+  .lectura-resumen { grid-template-columns: 1fr; }
+}

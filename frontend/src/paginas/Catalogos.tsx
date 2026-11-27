@@ -43,7 +43,7 @@ export function Componentes({ credencial }: Operador) {
       codigo: texto(datos, 'codigo'), nombre: texto(datos, 'nombre'),
       espacioId: texto(datos, 'espacio') || undefined,
       descripcion: texto(datos, 'descripcion') || undefined,
-    }, 'Tubería registrada. Está disponible para un reemplazo.', () => {
+    }, 'Tubería preparada sin conexiones. Abre un reporte y usa «Reemplazar tubería» para instalarla.', () => {
       form.reset()
       consulta.recargar()
     })
@@ -56,12 +56,15 @@ export function Componentes({ credencial }: Operador) {
           <h2>Catálogo</h2>
           <EstadoLista consulta={consulta} vacio={!componentes.length ? 'No hay componentes.' : undefined}>
             <div className="tabla"><table>
-              <thead><tr><th>Componente</th><th>Tipo</th><th>Ubicación</th><th>Estado</th><th>Conexiones</th></tr></thead>
+              <thead><tr><th>Componente</th><th>Tipo</th><th>Ubicación</th><th>Estado</th><th>Conexión a la red</th></tr></thead>
               <tbody>{componentes.map((c) => <tr key={c.componente_id}>
                 <th scope="row"><strong>{c.codigo}</strong><small>{c.nombre}</small></th>
                 <td>{etiqueta(c.tipo)}</td><td>{c.espacio_nombre ?? '—'}</td>
                 <td><Badge valor={c.estado} /></td>
-                <td>{c.tiene_conexiones ? 'Sí' : 'No'}{c.estado === 'ACTIVO' && c.tiene_conexiones &&
+                <td>{c.tiene_conexiones ? 'Con conexiones' : 'Sin conexiones'}
+                  {c.tipo === 'TUBERIA' && c.estado === 'ACTIVO' && !c.tiene_conexiones &&
+                    <small className="pista-catalogo">Candidata para reemplazo</small>}
+                  {c.estado === 'ACTIVO' && c.tiene_conexiones &&
                   <button className="compacto" type="button" aria-pressed={seleccion === c.componente_id} onClick={() => setSeleccion(c.componente_id)}>Ver alcance de {c.codigo}</button>}</td>
               </tr>)}</tbody>
             </table></div>
@@ -75,7 +78,8 @@ export function Componentes({ credencial }: Operador) {
           </section>}
         </section>
         <section className="panel">
-          <h2>Nueva tubería</h2>
+          <h2>Registrar tubería para reemplazo</h2>
+          <p className="ayuda-formulario">La tubería se prepara sin conexiones. Para instalarla, abre un <Link to="/reportes">reporte</Link> y utiliza «Reemplazar tubería». La operación conserva las conexiones de la tubería anterior.</p>
           <RequiereOperador credencial={credencial} />
           <form onSubmit={crear}>
             <fieldset disabled={!credencial || escritura.ocupado}>
@@ -83,7 +87,7 @@ export function Componentes({ credencial }: Operador) {
               <label>Nombre<input name="nombre" maxLength={150} required /></label>
               <label>Ubicación<select name="espacio"><option value="">Sin ubicación</option><OpcionesEspacios espacios={espacios.datos} /></select></label>
               <label>Descripción<textarea name="descripcion" rows={2} /></label>
-              <button className="primario" type="submit">{escritura.ocupado ? 'Guardando…' : 'Registrar tubería'}</button>
+              <button className="primario" type="submit">{escritura.ocupado ? 'Guardando…' : 'Preparar tubería'}</button>
             </fieldset>
           </form>
           {espacios.error && <EstadoLista consulta={espacios}>{null}</EstadoLista>}

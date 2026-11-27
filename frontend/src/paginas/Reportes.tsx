@@ -13,6 +13,7 @@ export function Reportes() {
   return (
     <>
       <div className="encabezado"><h1>Reportes</h1><Link className="boton primario" to="/reportes/nuevo">Crear reporte</Link></div>
+      <p className="ayuda-formulario">«Reporte» indica el avance de la atención. «Expediente» y «Red» indican la confirmación de los cambios en las otras bases; pueden tardar unos segundos.</p>
       <EstadoLista consulta={consulta} vacio={!consulta.datos?.length ? 'Aún no hay reportes. Los nuevos aparecerán aquí.' : undefined}>
         <div className="tabla panel"><table>
           <thead><tr><th>Espacio</th><th>Registro</th><th>Reporte</th><th>Expediente</th><th>Red</th></tr></thead>
