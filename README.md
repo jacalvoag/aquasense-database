@@ -37,8 +37,8 @@ MongoDB y Neo4j de forma recuperable.
 
 ## Actualizar desde la versión 1.0.0
 
-Conserva tus archivos de configuración y tus bases. Detén temporalmente API y
-sincronizador y aplica las migraciones aditivas 35 y 36:
+Conserva tus archivos de configuración y tus bases. Detén temporalmente API, sincronizador
+y frontend y aplica las migraciones aditivas 35 y 36:
 
 ```powershell
 node --env-file=sincronizador/.env herramientas/actualizar-red.mjs --aplicar

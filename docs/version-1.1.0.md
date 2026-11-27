@@ -7,7 +7,7 @@ reemplazos.
 
 ## Actualización necesaria
 
-Con PostgreSQL encendido, detén API y sincronizador. Desde la raíz y con tus
+Con PostgreSQL encendido, detén API, sincronizador y frontend. Desde la raíz y con tus
 archivos `.env` existentes:
 
 ```powershell

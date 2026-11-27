@@ -7,7 +7,7 @@ Los datos del ejemplo son académicos; las escrituras se realizan en las bases.
 
 ## Actualizar una instalación existente
 
-Actualiza el repositorio y detén temporalmente API y sincronizador. Desde la raíz:
+Actualiza el repositorio y detén temporalmente API, sincronizador y frontend. Desde la raíz:
 
 ```powershell
 npm ci --prefix api
