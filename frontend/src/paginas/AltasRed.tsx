@@ -61,6 +61,7 @@ export function AltaComponente({ credencial, espacios, alGuardar }: Operador & {
       {tipo === 'VALVULA' && <label>Posición registrada<select aria-label="Posición registrada" name="posicion" defaultValue="DESCONOCIDA">
         {['DESCONOCIDA', 'ABIERTA', 'CERRADA'].map((p) => <option value={p} key={p}>{etiqueta(p)}</option>)}
       </select></label>}
+      {tipo === 'VALVULA' && <p className="ayuda-formulario">La posición es un registro manual. El diagrama representa conexiones, sin simular el efecto hidráulico del cierre.</p>}
       {tipo === 'MEDIDOR' && <p>Las lecturas se registrarán en m³ desde Lecturas.</p>}
       <label>Descripción<textarea name="descripcion" rows={2} maxLength={4000} /></label>
       <button type="submit" className="primario">Registrar componente</button>
