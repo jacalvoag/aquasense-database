@@ -1,5 +1,15 @@
 # Historial de cambios
 
+## 1.1.0 — 2026-11-27
+
+- Registra espacios y los cinco tipos de componentes con sus eventos y subtipos.
+- Permite crear, modificar y eliminar conexiones desde la interfaz.
+- Actualiza el diagrama y los recorridos al confirmar cambios.
+- Admite conectar candidatas antiguas y reemplazar candidatas ya sincronizadas.
+- Incorpora migraciones aditivas 35/36 y pruebas reales del ramal nuevo.
+
+[Actualización y demostración](docs/red-dinamica.md).
+
 ## 1.0.0 — 2026-11-27
 
 Primera entrega académica de AquaSense.

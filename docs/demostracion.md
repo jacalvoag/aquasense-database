@@ -27,6 +27,12 @@ un reporte y una candidata nuevos. Para repetir la prueba automática desde
 cero, sigue la eliminación de **sus volúmenes aislados** descrita en la guía.
 No elimines las bases del equipo.
 
+## Construcción de un ramal durante la exposición
+
+Como alternativa al ramal precargado, sigue [red-dinamica.md](red-dinamica.md):
+registra un espacio, una tubería y sus conexiones. Usa ese espacio en el flujo
+de mantenimiento de abajo. Comprueba los datos después de recargar el navegador.
+
 ## Recorrido en la interfaz
 
 | Tiempo aproximado | Acción | Qué explicar y comprobar |
@@ -34,7 +40,7 @@ No elimines las bases del equipo.
 | 0:00–0:40 | Inicio y Red de agua. | Las cifras vienen de los registros. Seleccionar un componente resalta sus ramales y espacios aguas abajo. Mostrar las figuras y el panel de detalle. |
 | 0:40–1:30 | Crear reporte para el espacio elegido. | PostgreSQL registra la operación y su evento. Esperar el expediente PROCESADO antes de seguir. |
 | 1:30–2:10 | Agregar INSPECCION con descripción y hallazgos. | MongoDB reúne el detalle documental. Esperar confirmación y ver la atención en el expediente. |
-| 2:10–3:20 | En Componentes, preparar una tubería con código único. Volver al reporte y elegir Reemplazar tubería. | La candidata nace sin conexiones. Seleccionar la anterior y la nueva; describir el trabajo y materiales. El reemplazo ya registra la REPARACION: no agregarla por separado. |
+| 2:10–3:20 | En Componentes, registrar una tubería con código único. Volver al reporte y elegir Reemplazar tubería. | La candidata nace sin conexiones. Seleccionar la anterior y la nueva; describir el trabajo y materiales. El reemplazo ya registra la REPARACION: no agregarla por separado. |
 | 3:20–4:10 | Esperar expediente y red PROCESADO. Actualizar Red de agua. | La anterior queda RETIRADO; la nueva conserva sus conexiones y alcance. Mostrar que la versión avanzó respecto de la anotada al inicio. |
 | 4:10–5:00 | Agregar VERIFICACION con resultado Sin indicios, esperar su confirmación y cerrar el reporte. | El cierre depende de las reglas del proceso. Mostrar CERRADO y las tres atenciones: inspección, reparación y verificación. |
 | 5:00–5:40 | Capturar la lectura preparada y consultar consumo. | Se resta el acumulado anterior del nuevo. Por ejemplo, 120.500 − 118.000 = 2.500 m³, solo si esos eran los datos del ensayo. |

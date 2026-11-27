@@ -10,8 +10,8 @@ En una base de datos PostgreSQL nueva:
 2. Ejecutar los archivos `24` a `27` para cargar los espacios,
    componentes, conexiones y lecturas de ejemplo.
 3. Ejecutar el archivo `28` para crear la vista de consumo.
-4. Ejecutar los archivos `32`, `33` y `34` para instalar las
-   operaciones de creación, eliminación y actualización de conexiones.
+4. Ejecutar los archivos `32`, `33`, `34`, `35` y `36` para instalar las
+   operaciones de conexiones y las altas sincronizadas de espacios y componentes.
 
 La carga base esperada contiene:
 

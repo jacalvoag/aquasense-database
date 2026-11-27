@@ -9,6 +9,7 @@ El campus de la Universidad Politécnica de Chiapas es el escenario de demostrac
 Captura de una ejecución real del 27 de noviembre de 2026. Las figuras son
 simbólicas; los componentes, conexiones y recorridos proceden de la API.
 
+[Construir ramales](docs/red-dinamica.md) ·
 [Arranque local](docs/ejecucion-local.md) ·
 [Guion de demostración](docs/demostracion.md) ·
 [Solución de problemas](docs/solucion-problemas.md) ·
@@ -18,11 +19,13 @@ simbólicas; los componentes, conexiones y recorridos proceden de la API.
 
 ## Qué permite hacer
 
+- Registrar espacios y componentes de los cinco tipos admitidos.
+- Crear, modificar y eliminar conexiones, con confirmación y actualización automática del diagrama.
 - Consultar espacios, componentes, lecturas y reportes.
 - Registrar lecturas acumuladas y obtener el consumo entre lecturas.
 - Crear un reporte, documentar inspección, reparación y verificación, y cerrarlo.
 - Preparar una tubería sin conexiones e instalarla mediante el reemplazo de
-  otra existente, conservando sus conexiones.
+  otra existente, conservando sus conexiones, o conectarla para crear un ramal.
 - Explorar una red ilustrada, consultar los espacios aguas abajo y revisar
   la confirmación documental y del grafo por separado.
 - Ver en la portada los reportes pendientes y en atención, los componentes
@@ -31,6 +34,18 @@ simbólicas; los componentes, conexiones y recorridos proceden de la API.
 La credencial de operador habilita escrituras. Las consultas son públicas.
 La API verifica cada operación y el sincronizador confirma los cambios de
 MongoDB y Neo4j de forma recuperable.
+
+## Actualizar desde la versión 1.0.0
+
+Conserva tus archivos de configuración y tus bases. Detén temporalmente API y
+sincronizador y aplica las migraciones aditivas 35 y 36:
+
+```powershell
+node --env-file=sincronizador/.env herramientas/actualizar-red.mjs --aplicar
+```
+
+La [guía de red dinámica](docs/red-dinamica.md) reúne los pasos de actualización
+y un ensayo para registrar y conectar un ramal nuevo sin cargar datos manualmente.
 
 ## Ejecutar en Windows
 
@@ -116,10 +131,10 @@ lecturas y reportes son datos supuestos o de prueba. El diagrama representa
 conectividad; no es un plano técnico ni una simulación de presión o caudal.
 El prototipo no detecta fugas automáticamente ni demuestra ahorro de agua.
 
-La aplicación local utiliza un operador y un sincronizador. La edición
-general de espacios y conexiones, los sensores y una infraestructura pública
-de producción quedan fuera de esta entrega. Una tubería nueva queda preparada
-sin conexiones hasta usarla en un reemplazo.
+La aplicación local utiliza un operador y un sincronizador. Se pueden registrar
+espacios y componentes y administrar las conexiones desde la aplicación. Los componentes nuevos pueden conectarse para formar ramales;
+las tuberías también pueden instalarse mediante un reemplazo. Los sensores y
+una infraestructura pública de producción quedan fuera de esta entrega.
 
 ## Equipo
 
@@ -129,5 +144,5 @@ sin conexiones hasta usarla en un reemplazo.
 Ingeniería en Tecnologías de la Información e Innovación Digital,
 Universidad Politécnica de Chiapas. Docente: Horacio Irán Solís Cisneros.
 
-La [versión académica 1.0.0](docs/version-1.0.0.md) describe la entrega;
+La [versión académica 1.1.0](docs/version-1.1.0.md) describe la entrega;
 el [historial de cambios](CHANGELOG.md) conserva sus novedades.
