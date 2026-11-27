@@ -148,6 +148,9 @@ jobs:
           Copy-Item sincronizador/.env.pruebas.example api/.env
           Copy-Item sincronizador/.env.pruebas.example sincronizador/.env
           .\iniciar.ps1 -SoloComprobar
+      - name: Arrancar Vite en Windows y comprobar el puerto estricto
+        shell: powershell
+        run: .\scripts\probar-frontend-windows.ps1
 
   publicar:
     name: Publicar versión académica

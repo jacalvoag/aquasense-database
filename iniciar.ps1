@@ -69,7 +69,7 @@ try {
 
     Abrir-Terminal 'sincronizador' 'npm run dev'
     $apiPublica = ([string]$configuracion.apiUrl).Replace("'", "''")
-    Abrir-Terminal 'frontend' ("$" + "env:VITE_API_BASE_URL = '" + $apiPublica + "'; npm run dev -- --host 127.0.0.1 --port 5173 --strictPort")
+    Abrir-Terminal 'frontend' ("$" + "env:VITE_API_BASE_URL = '" + $apiPublica + "'; npm run dev:local")
     $frontendListo = $false
     for ($intento = 0; $intento -lt 30; $intento++) {
         if (Test-PuertoLocal 5173) { $frontendListo = $true; break }
