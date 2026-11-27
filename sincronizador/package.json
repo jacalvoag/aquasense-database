@@ -6,6 +6,8 @@
   "scripts": {
     "test": "node --import tsx --test src/conexion.test.ts",
     "dev": "node --env-file=.env --import tsx src/index.ts",
+    "dev:una-vez": "node --env-file=.env --import tsx src/index.ts --una-vez",
+    "test:sistema": "node --env-file=.env.pruebas --import tsx --test --test-concurrency=1 src/sistema.integration.test.ts",
     "check": "tsc --noEmit",
     "test:integracion": "node --env-file=.env --import tsx --test --test-concurrency=1 src/eventos.integration.test.ts src/documental.integration.test.ts src/bloqueo.integration.test.ts src/fallos.integration.test.ts src/fallos-grafo.integration.test.ts"
   },
