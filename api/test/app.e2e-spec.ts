@@ -57,6 +57,25 @@ describe('Contrato HTTP de la API', () => {
   afterAll(async () => {
     await app?.close();
   });
+  it.each(['/espacios', '/componentes', '/conexiones', `/conexiones/${id}/actualizar`, `/conexiones/${id}/eliminar`])(
+    'protege la escritura de red %s', async (ruta) => {
+      await request(app.getHttpServer()).post(ruta).send({}).expect(401);
+      expect(consultar).not.toHaveBeenCalled();
+    },
+  );
+  it('autoriza y registra una conexión mediante HTTP', async () => {
+    const r = await request(app.getHttpServer()).post('/conexiones').auth('operador', 'clave-solo-pruebas')
+      .send({ componenteOrigenId: id, espacioDestinoId: espacio }).expect(201);
+    expect(r.body.estadoGrafoInicial).toBe('PENDIENTE');
+    expect(consultar).toHaveBeenCalledWith(expect.stringContaining('crear_conexion_red'),
+      [r.body.conexionId, id, null, espacio, r.body.eventoId]);
+  });
+  it('informa que la base necesita migración sin exponer errores SQL', async () => {
+    consultar.mockRejectedValueOnce({ code: '42883' });
+    const r = await request(app.getHttpServer()).post('/espacios').auth('operador', 'clave-solo-pruebas')
+      .send({ nombre: 'Nuevo', tipo: 'OTRO' }).expect(503);
+    expect(r.body.message).toContain('migraciones');
+  });
   it('permite consultar espacios sin credenciales', async () => {
     await request(app.getHttpServer()).get('/espacios').expect(200);
   });
