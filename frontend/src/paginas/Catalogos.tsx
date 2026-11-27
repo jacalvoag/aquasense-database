@@ -1,3 +1,4 @@
+import { AltaEspacio, AltaComponente } from './AltasRed'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router'
@@ -10,13 +11,14 @@ export function OpcionesEspacios({ espacios }: { espacios?: Espacio[] }) {
   return <>{espacios?.map((espacio) => <option key={espacio.espacio_id} value={espacio.espacio_id}>{espacio.nombre}</option>)}</>
 }
 
-export function Espacios() {
+export function Espacios({ credencial }: Operador) {
   const consulta = useConsulta<Espacio[]>('/espacios')
   const espacios = consulta.datos ?? []
   const nombres = new Map(espacios.map((espacio) => [espacio.espacio_id, espacio.nombre]))
   return (
     <>
       <h1>Espacios</h1>
+      <div className="columnas"><section className="panel"><h2>Catálogo de espacios</h2>
       <EstadoLista consulta={consulta} vacio={!espacios.length ? 'No hay espacios registrados.' : undefined}>
         <div className="tabla"><table>
           <thead><tr><th>Espacio</th><th>Tipo</th><th>Espacio contenedor</th><th>Descripción</th></tr></thead>
@@ -26,6 +28,7 @@ export function Espacios() {
           </tr>)}</tbody>
         </table></div>
       </EstadoLista>
+      </section><AltaEspacio credencial={credencial} espacios={espacios} alGuardar={consulta.recargar} /></div>
     </>
   )
 }
@@ -35,19 +38,7 @@ export function Componentes({ credencial }: Operador) {
   const espacios = useConsulta<Espacio[]>('/espacios')
   const [seleccion, setSeleccion] = useState<string | null>(null)
   const alcance = useConsulta<{ espacios: EspacioAlcanzable[] }>(seleccion ? `/componentes/${seleccion}/espacios-afectados` : null)
-  const escritura = useEscritura(credencial)
   const componentes = consulta.datos ?? []
-  function crear(evento: FormEvent<HTMLFormElement>) {
-    const { form, datos } = conFormulario(evento)
-    void escritura.enviar('/componentes/tuberias', {
-      codigo: texto(datos, 'codigo'), nombre: texto(datos, 'nombre'),
-      espacioId: texto(datos, 'espacio') || undefined,
-      descripcion: texto(datos, 'descripcion') || undefined,
-    }, 'Tubería preparada sin conexiones. Abre un reporte y usa «Reemplazar tubería» para instalarla.', () => {
-      form.reset()
-      consulta.recargar()
-    })
-  }
   return (
     <>
       <div className="encabezado"><h1>Componentes</h1><Link className="boton" to="/red">Ver red de agua</Link></div>
@@ -63,7 +54,8 @@ export function Componentes({ credencial }: Operador) {
                 <td><Badge valor={c.estado} /></td>
                 <td>{c.tiene_conexiones ? 'Con conexiones' : 'Sin conexiones'}
                   {c.tipo === 'TUBERIA' && c.estado === 'ACTIVO' && !c.tiene_conexiones &&
-                    <small className="pista-catalogo">Candidata para reemplazo</small>}
+                    <small className="pista-catalogo">Disponible para conectar o reemplazar</small>}
+                  {c.estado === 'ACTIVO' && !c.tiene_conexiones && <Link className="boton compacto" to={`/conexiones?origen=${c.componente_id}`}>Conectar {c.codigo}</Link>}
                   {c.estado === 'ACTIVO' && c.tiene_conexiones &&
                   <button className="compacto" type="button" aria-pressed={seleccion === c.componente_id} onClick={() => setSeleccion(c.componente_id)}>Ver alcance de {c.codigo}</button>}</td>
               </tr>)}</tbody>
@@ -77,22 +69,7 @@ export function Componentes({ credencial }: Operador) {
             </EstadoLista>
           </section>}
         </section>
-        <section className="panel">
-          <h2>Registrar tubería para reemplazo</h2>
-          <p className="ayuda-formulario">La tubería se prepara sin conexiones. Para instalarla, abre un <Link to="/reportes">reporte</Link> y utiliza «Reemplazar tubería». La operación conserva las conexiones de la tubería anterior.</p>
-          <RequiereOperador credencial={credencial} />
-          <form onSubmit={crear}>
-            <fieldset disabled={!credencial || escritura.ocupado}>
-              <label>Código<input name="codigo" maxLength={40} required /></label>
-              <label>Nombre<input name="nombre" maxLength={150} required /></label>
-              <label>Ubicación<select name="espacio"><option value="">Sin ubicación</option><OpcionesEspacios espacios={espacios.datos} /></select></label>
-              <label>Descripción<textarea name="descripcion" rows={2} /></label>
-              <button className="primario" type="submit">{escritura.ocupado ? 'Guardando…' : 'Preparar tubería'}</button>
-            </fieldset>
-          </form>
-          {espacios.error && <EstadoLista consulta={espacios}>{null}</EstadoLista>}
-          <AvisoEscritura aviso={escritura.aviso} />
-        </section>
+        <AltaComponente credencial={credencial} espacios={espacios.datos} alGuardar={consulta.recargar} />
       </div>
     </>
   )

@@ -209,3 +209,6 @@ thead th { background: #f2f7fa; }
   .resumen-metrica strong { grid-column: 2; grid-row: 1 / 3; font-size: 2rem; }
   .lectura-resumen { grid-template-columns: 1fr; }
 }
+
+.confirmacion-red { margin: 1rem 0; }
+.confirmacion-red > small { display: block; overflow-wrap: anywhere; color: #597585; margin-top: .4rem; }

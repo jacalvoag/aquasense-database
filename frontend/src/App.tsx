@@ -1,3 +1,4 @@
+import { Conexiones } from './paginas/Conexiones'
 import { useEffect, useState } from 'react'
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from 'react-router'
 import { Activity, ArrowUpRight, Building2, CircleGauge, Droplets, FileText, Home, Network, UserRound, Wrench } from 'lucide-react'
@@ -14,6 +15,7 @@ import { Aviso, EstadoLista } from './ui'
 const secciones = [
   { ruta: '/reportes', nombre: 'Reportes', descripcion: 'Seguimiento de mantenimiento', icono: FileText },
   { ruta: '/red', nombre: 'Red de agua', descripcion: 'Conexiones y recorridos', icono: Network },
+  { ruta: '/conexiones', nombre: 'Conexiones', descripcion: 'Crear y modificar ramales', icono: Network },
   { ruta: '/componentes', nombre: 'Componentes', descripcion: 'Tuberías, medidores y válvulas', icono: Wrench },
   { ruta: '/lecturas', nombre: 'Lecturas', descripcion: 'Registro y consumo de agua', icono: CircleGauge },
   { ruta: '/espacios', nombre: 'Espacios', descripcion: 'Lugares del campus', icono: Building2 },
@@ -82,7 +84,7 @@ function Inicio() {
         </div>
         {(reportes.error || componentes.error) &&
           <Aviso error>Algunas cifras no están disponibles. Comprueba la conexión y actualiza los datos.</Aviso>}
-        <p className="nota-resumen">Cifras obtenidas de los registros actuales. Los componentes activos incluyen las tuberías preparadas para reemplazo.</p>
+        <p className="nota-resumen">Cifras obtenidas de los registros actuales. Los componentes activos incluyen los registrados sin conexiones.</p>
       </section>
       <div className="inicio-columnas">
       <section className="inicio-accesos" aria-labelledby="accesos-titulo">
@@ -199,7 +201,8 @@ export default function App() {
           <Route path="/reportes/:id" element={<ReporteDetalle credencial={credencial} />} />
           <Route path="/componentes" element={<Componentes credencial={credencial} />} />
           <Route path="/lecturas" element={<Lecturas credencial={credencial} />} />
-          <Route path="/espacios" element={<Espacios />} />
+          <Route path="/espacios" element={<Espacios credencial={credencial} />} />
+          <Route path="/conexiones" element={<Conexiones credencial={credencial} />} />
           <Route path="/red" element={<Red />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -41,14 +41,14 @@ test('una consulta fallida no se presenta como cero componentes', async ({ page 
   await expect(page.getByText('Algunas cifras no están disponibles.', { exact: false })).toBeVisible()
 })
 
-test('la tubería candidata se explica antes de habilitar su registro', async ({ page }) => {
+test('el componente sin conexiones se explica antes de habilitar su registro', async ({ page }) => {
   await page.goto('/componentes')
-  await expect(page.getByRole('heading', { name: 'Registrar tubería para reemplazo', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Preparar tubería', exact: true })).toBeDisabled()
-  await expect(page.getByText('La tubería se prepara sin conexiones.', { exact: false })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Registrar componente', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Registrar componente', exact: true })).toBeDisabled()
+  await expect(page.getByText('El componente se registra sin conexiones.', { exact: false })).toBeVisible()
   await page.getByRole('button', { name: 'Acceso de operador', exact: true }).click()
   await page.getByLabel('Usuario', { exact: true }).fill('operador')
   await page.getByLabel('Clave', { exact: true }).fill('operador-solo-pruebas')
   await page.getByRole('button', { name: 'Continuar', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Preparar tubería', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Registrar componente', exact: true })).toBeEnabled()
 })

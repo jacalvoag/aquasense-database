@@ -1,3 +1,4 @@
+import type { useCambioRed } from './api/cambios-red'
 import type { ReactNode } from 'react'
 import { etiqueta, motivo } from './operaciones'
 import type { EstadoConsulta, Operador, useEscritura } from './operaciones'
@@ -26,4 +27,18 @@ export function EstadoLista({ consulta, vacio, children }: {
 
 export function RequiereOperador({ credencial }: Operador) {
   return !credencial && <Aviso>Para guardar cambios, ingresa tu credencial en <a href="#acceso-operador">Acceso de operador</a>. Los formularios se habilitarán al continuar.</Aviso>
+}
+
+export function ConfirmacionRed({ cambio }: { cambio: ReturnType<typeof useCambioRed> }) {
+  if (!cambio.eventoId) return null
+  const estado = cambio.actual?.evento?.estado
+  return <div className="confirmacion-red" aria-live="polite">
+    {estado === 'PROCESADO' ? <Aviso>Cambio confirmado en la red. Ya puedes continuar.</Aviso>
+      : estado === 'ERROR' ? <Aviso error>El cambio está guardado pero su sincronización falló. Solicita revisar el evento; no vuelvas a registrarlo.</Aviso>
+      : cambio.actual?.error ? <Aviso error>{motivo(cambio.actual.error)} La operación ya fue registrada; vuelve a consultar su confirmación.</Aviso>
+      : <Aviso>{cambio.actual?.agotado ? 'El cambio sigue sin confirmar. Revisa que el sincronizador esté encendido.' : 'Cambio guardado. Esperando confirmación del sincronizador…'}</Aviso>}
+    {(cambio.actual?.agotado || cambio.actual?.error || estado === 'ERROR') &&
+      <button type="button" onClick={cambio.reanudar}>Consultar confirmación</button>}
+    <small>Evento: {cambio.eventoId}</small>
+  </div>
 }
