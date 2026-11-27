@@ -15,4 +15,13 @@ El detalle del reporte muestra por separado el estado del reporte, del expedient
 
 «Red de agua» consulta el esquema instalado mediante `GET /red`. El diagrama usa React Flow y Dagre. Seleccionar un componente consulta su alcance aguas abajo en la API. La vista de lista permite consultar los mismos nodos y el panel de detalle.
 
+El esquema representa cisternas, tuberías, medidores, uniones, válvulas y espacios mediante figuras SVG. Los sistemas sin conexión entre sí se separan automáticamente y toman el nombre de su componente de origen. Las figuras son simbólicas: no indican niveles de agua ni mediciones en tiempo real. Los códigos, estados, conexiones y recorridos proceden de la API.
+
+Para revisar la vista:
+
+- Selecciona una figura con el ratón o con Tab y Enter. Comprueba el panel de detalle y el recorrido aguas abajo en turquesa.
+- Usa los controles de zoom, el ajuste a la vista y «Limpiar selección».
+- Cambia entre diagrama y lista. En pantallas pequeñas se abre inicialmente la lista, con las mismas figuras y datos.
+- Actualiza la red después de un reemplazo confirmado. Si la API informa de cambios pendientes o indisponibilidad, se muestra el error y se permite reintentar.
+
 Verifica con `npm run lint` y `npm run build`.
