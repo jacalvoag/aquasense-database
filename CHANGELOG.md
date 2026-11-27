@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## 1.1.1 — 2026-11-27
+
+- Corrige el arranque de Vite desde PowerShell evitando reenviar sus opciones mediante npm.
+- Añade `npm run dev:local` con host, puerto y puerto estricto definidos en el script.
+- Comprueba el arranque real en Windows, las rutas con espacios y el rechazo de una segunda instancia.
+- Conserva las migraciones y los datos de la versión 1.1.0.
+
 ## 1.1.0 — 2026-11-27
 
 - Registra espacios y los cinco tipos de componentes con sus eventos y subtipos.

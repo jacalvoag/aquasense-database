@@ -124,3 +124,22 @@ quieras reiniciar ese entorno.
 
 Si una operación informa que faltan las migraciones 35/36, detén API y
 sincronizador y ejecuta el procedimiento de actualización de la guía.
+
+## Vite muestra advertencias de npm sobre host o puerto
+
+Si aparecen `Unknown cli config "--host"` y `CACError: Unused args: 5173`,
+actualiza el repositorio y, desde `frontend/`, ejecuta:
+
+```powershell
+npm run dev:local
+```
+
+El script contiene las opciones de Vite y evita reenviarlas desde PowerShell.
+Como solución inmediata también puedes ejecutar:
+
+```powershell
+node .\node_modules\vite\bin\vite.js --host 127.0.0.1 --port 5173 --strictPort
+```
+
+Esto no requiere repetir la migración SQL. Si API y sincronizador ya funcionan,
+puedes dejarlos encendidos y arrancar solo el frontend.

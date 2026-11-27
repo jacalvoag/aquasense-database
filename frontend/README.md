@@ -4,7 +4,7 @@ La interfaz local usa React, TypeScript y Vite. Sigue la [guía de ejecución lo
 
 ```powershell
 npm ci
-npm run dev
+npm run dev:local
 ```
 
 Abre la URL que muestra Vite. Por defecto se usa `http://localhost:5173` y se consulta la API en `http://127.0.0.1:3000`. Si la URL cambia, copia `.env.example` a `.env.local` y ajusta `VITE_API_BASE_URL`. Esa variable es pública.
@@ -37,3 +37,8 @@ mediante `npx playwright install chromium`. Consulta los comandos completos en
 La [guía de red dinámica](../docs/red-dinamica.md) incluye las migraciones y un
 ensayo completo de registro y conexiones. La prueba visual de escrituras
 requiere un sincronizador continuo dirigido a las bases aisladas.
+
+En PowerShell usa `npm run dev:local` para el puerto 5173 estricto. Las opciones
+están dentro del script npm para evitar que el shim de PowerShell las interprete
+como opciones de npm. `npm run dev` sigue disponible con los valores normales
+de Vite.
