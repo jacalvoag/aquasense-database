@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --import tsx --test src/conexion.test.ts",
+    "test": "node --import tsx --test src/conexion.test.ts src/nodos.test.ts",
     "dev": "node --env-file=.env --import tsx src/index.ts",
     "dev:una-vez": "node --env-file=.env --import tsx src/index.ts --una-vez",
     "test:sistema": "node --env-file=.env.pruebas --import tsx --test --test-concurrency=1 src/sistema.integration.test.ts",

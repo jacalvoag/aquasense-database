@@ -1,4 +1,5 @@
 import pg from "pg";
+import { aplicarAlta, asegurarExtremos, asegurarNodo } from "./nodos";
 import { isDeepStrictEqual } from "node:util";
 import { Long, MongoClient, type Document } from "mongodb";
 import neo4j from "neo4j-driver";
@@ -100,6 +101,8 @@ if (eventosEnError.rows.length > 0) {
             evento.destino === "GRAFO" &&
             evento.tipo === "ACTUALIZAR_RED" &&
             [
+            "CREAR_ESPACIO",
+            "CREAR_COMPONENTE",
             "CREAR_CONEXION",
             "ACTUALIZAR_CONEXION",
             "ELIMINAR_CONEXION",
@@ -323,6 +326,16 @@ if (eventosEnError.rows.length > 0) {
         variable("NEO4J_DATABASE"),
       );
 
+      // Aplicar altas antes de confirmarlas; el selector conserva el orden global.
+      for (const evento of eventosPendientes.rows) {
+        if (evento.destino !== 'GRAFO' || !['CREAR_ESPACIO', 'CREAR_COMPONENTE'].includes(evento.datos?.cambio?.operacion)) continue;
+        eventoActual = evento;
+        await aplicarAlta(sesion, evento);
+        await postgres.query('SELECT aquasense.confirmar_evento_grafo($1::uuid)', [evento.evento_id]);
+        console.log(`Alta aplicada y confirmada: ${evento.evento_id}`);
+        eventoActual = null;
+      }
+
       // Actualizar una conexión existente en Neo4j.
       for (const evento of eventosPendientes.rows) {
         if (
@@ -424,6 +437,7 @@ if (eventosEnError.rows.length > 0) {
             return;
           }
 
+          await asegurarExtremos(tx, datos.cambio);
           const resultado = await tx.run(
             `
             MATCH (control:ControlRed {
@@ -717,6 +731,7 @@ if (eventosEnError.rows.length > 0) {
         return;
         }
 
+        await asegurarExtremos(tx, datos.cambio);
         const resultado = await tx.run(
         `
         MATCH (control:ControlRed {
@@ -979,7 +994,7 @@ if (eventosEnError.rows.length > 0) {
             return;
             }
 
-            // Comprobar la versión, la tubería anterior y que la nueva no exista.
+            // Comprobar versión, tubería anterior y candidata sin conexiones ni reemplazos previos.
             const estadoInicial = await tx.run(
             `
             MATCH (control:ControlRed {
@@ -993,7 +1008,9 @@ if (eventosEnError.rows.length > 0) {
                 estado: 'ACTIVO'
             })
             WHERE NOT EXISTS {
-                MATCH (:Componente {componenteId: $nuevaId})
+                MATCH (:Componente {componenteId: $nuevaId})-[:CONECTA_CON]-()
+            } AND NOT EXISTS {
+                MATCH (:Componente {componenteId: $nuevaId})-[:REEMPLAZA_A]->()
             }
             RETURN COUNT {
                 MATCH (anterior)-[:CONECTA_CON]-()
@@ -1012,39 +1029,8 @@ if (eventosEnError.rows.length > 0) {
             );
             }
 
-            const creada = await tx.run(
-            `
-            CREATE (nueva:Componente {
-                componenteId: $nuevaId,
-                codigo: $codigoNuevo,
-                nombre: $nombreNuevo,
-                tipo: 'TUBERIA',
-                estado: 'ACTIVO'
-            })
-            RETURN nueva.componenteId AS id
-            `,
-            parametrosBase,
-            );
-
-            if (creada.records.length !== 1) {
-            throw new Error("No se pudo crear la tubería nueva.");
-            }
-
-            if (nueva.espacio_id !== null) {
-            const ubicacion = await tx.run(
-                `
-                MATCH (nueva:Componente {componenteId: $nuevaId})
-                MATCH (espacio:Espacio {espacioId: $espacioId})
-                CREATE (nueva)-[:UBICADO_EN]->(espacio)
-                RETURN espacio.espacioId AS id
-                `,
-                parametrosBase,
-            );
-
-            if (ubicacion.records.length !== 1) {
-                throw new Error("No se encontró la ubicación de la tubería nueva.");
-            }
-            }
+            // Admite candidatas antiguas sin nodo y altas ya sincronizadas.
+            await asegurarNodo(tx, nueva, 'Componente');
 
             for (const item of conexiones) {
             const antes = item.antes;
