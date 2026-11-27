@@ -125,7 +125,7 @@ procedimiento de reconstrucción automatizado.
 No se debe marcar un evento como procesado sin comprobar que su cambio
 se aplicó en la base de destino.
 
-## Estado actual y pendientes
+## Estado actual y límites
 
 ### Realizado
 
@@ -152,16 +152,19 @@ se aplicó en la base de destino.
   [guía de pruebas](pruebas/README.md) y las
   [evidencias del 27 de noviembre](pruebas/evidencias/2026-11-27/README.md)
   permiten revisar las condiciones y resultados.
-- Dos reconstrucciones independientes coincidieron en 12 tablas, 69
+- En el entorno aislado, dos reconstrucciones independientes coincidieron en 12 tablas, 69
   restricciones, 27 índices, 21 funciones, 6 triggers y 1 vista. El comparador
   también detectó un índice eliminado dentro de una transacción revertida.
 
-### Pendiente
+- El responsable ejecutó la comparación local entre `aquasense` y
+  `aquasense_reconstruccion`: coincidieron los 190 objetos exportados,
+  incluidos 12 tablas, 123 restricciones, 27 índices, 21 funciones, 6 triggers
+  y 1 vista, sin objetos faltantes, adicionales ni diferentes. El
+  [resumen reportado](pruebas/evidencias/2026-11-27/comparacion-original-resumen.json)
+  conserva el resultado separado de la prueba aislada.
 
-- Ejecutar la comparación contra la base original `aquasense` del equipo del
-  responsable. Las [herramientas de exportación y comparación](herramientas/README.md)
-  están preparadas y probadas; la coincidencia entre dos reconstrucciones no
-  sustituye esa comprobación.
+### Límites del prototipo
+
 - La edición general de espacios y componentes queda fuera del prototipo
   actual. Las escrituras de la API requieren una credencial de operador local;
   consulta [api/README.md](api/README.md).
