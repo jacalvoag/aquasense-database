@@ -98,10 +98,27 @@ npm run test:visual
 ```
 
 Detén cualquier frontend que esté ocupando el puerto 5173: la prueba inicia y
-cierra su propio Vite, apuntando a la API de pruebas en 3001. No intercepta
+cierra su propio Vite, apuntando a la API de pruebas en 3001. El caso de red no intercepta
 solicitudes ni sustituye respuestas. Comprueba la tubería realmente instalada,
 su alcance, el zoom, la selección con teclado y la lista móvil sin desbordamiento.
 Genera capturas y un reporte JSON en `pruebas/resultados/`.
 
 La comparación con la estructura PostgreSQL original se realiza aparte con
 las [herramientas de exportación de solo lectura](../herramientas/README.md).
+
+## Comprobaciones de presentación
+
+El mismo comando `npm run test:visual` añade tres casos:
+
+- Compara los contadores de Inicio con las respuestas reales de la API y revisa
+  la lectura reciente y el ancho móvil.
+- Sustituye **solo en un caso** la respuesta del catálogo de componentes por
+  un 503 para comprobar que se informa la indisponibilidad y no se muestra cero.
+- Comprueba la explicación de la tubería candidata y la habilitación del
+  formulario al introducir una credencial en memoria. No envía la operación
+  ni afirma verificar esa credencial; la autorización del POST se prueba aparte.
+
+GitHub Actions ejecuta el sistema con los motores definidos en Compose, conserva
+`pruebas/resultados/` como artefacto durante 30 días y elimina únicamente sus
+volúmenes de prueba al finalizar. El job de Windows comprueba sintaxis y
+configuración del lanzador sin abrir terminales ni conectar motores.

@@ -1,176 +1,133 @@
 # AquaSense
 
-Prototipo académico para consultar la red de agua de un campus, capturar
-lecturas manuales y dar seguimiento a reportes de mantenimiento.
+**Seguimiento del mantenimiento y consulta de una red de agua.** Prototipo
+académico con lecturas manuales, expedientes de reportes y recorridos aguas abajo.
+El campus de la Universidad Politécnica de Chiapas es el escenario de demostración.
 
-- [Instalación y demostración local](docs/ejecucion-local.md)
-- [Matriz de pruebas y medición de consultas](docs/validacion.md)
-- [Frontend](frontend/README.md)
+![Red ilustrada de AquaSense en escritorio](pruebas/evidencias/2026-11-27/red-escritorio.png)
 
-## Alcance
+Captura de una ejecución real del 27 de noviembre de 2026. Las figuras son
+simbólicas; los componentes, conexiones y recorridos proceden de la API.
 
-AquaSense utiliza tres bases de datos:
+[Arranque local](docs/ejecucion-local.md) ·
+[Guion de demostración](docs/demostracion.md) ·
+[Solución de problemas](docs/solucion-problemas.md) ·
+[Informe técnico](docs/informe-tecnico.md) ·
+[Contrato de la API](docs/api/contrato.md) ·
+[Resultados y límites](docs/validacion.md)
 
-- **PostgreSQL:** datos operativos, lecturas, reportes, conexiones,
-  reemplazos y eventos pendientes de sincronización.
-- **MongoDB:** expedientes de reportes y detalle de sus atenciones.
-- **Neo4j:** representación de la red para recorridos y consulta
-  del historial de reemplazos.
+## Qué permite hacer
 
-Los datos del campus se usan como escenario académico. Las cisternas,
-tuberías, conexiones, lecturas y reportes son supuestos o ficticios.
+- Consultar espacios, componentes, lecturas y reportes.
+- Registrar lecturas acumuladas y obtener el consumo entre lecturas.
+- Crear un reporte, documentar inspección, reparación y verificación, y cerrarlo.
+- Preparar una tubería sin conexiones e instalarla mediante el reemplazo de
+  otra existente, conservando sus conexiones.
+- Explorar una red ilustrada, consultar los espacios aguas abajo y revisar
+  la confirmación documental y del grafo por separado.
+- Ver en la portada los reportes pendientes y en atención, los componentes
+  activos, la lectura más reciente y la disponibilidad de los tres motores.
+
+La credencial de operador habilita escrituras. Las consultas son públicas.
+La API verifica cada operación y el sincronizador confirma los cambios de
+MongoDB y Neo4j de forma recuperable.
+
+## Ejecutar en Windows
+
+Necesitas las tres bases preparadas y encendidas, Node.js y npm. Usa Node 26
+para reproducir la configuración recomendada. La [guía local](docs/ejecucion-local.md)
+explica los archivos `.env`; no se suben a Git.
+
+Desde la **raíz del repositorio**, donde están `api/`, `sincronizador/`
+y `frontend/`:
+
+```powershell
+.\iniciar.ps1 -Instalar
+```
+
+En los siguientes arranques:
+
+```powershell
+.\iniciar.ps1
+```
+
+El lanzador comprueba las bases y abre las tres aplicaciones en terminales
+separadas. No instala motores ni carga datos. Para detener las aplicaciones,
+usa Ctrl+C en cada terminal. Si ya están abiertas, utiliza sus sesiones
+existentes o ciérralas antes de ejecutar el lanzador.
+
+Solo configuración y dependencias, sin conexiones ni arranque:
+`.\iniciar.ps1 -SoloComprobar`. También puedes arrancar cada aplicación
+[por separado](docs/ejecucion-local.md#arranque-manual).
+
+## Por qué tres bases de datos
+
+| Motor | Responsabilidad | Adecuación al trabajo |
+| --- | --- | --- |
+| PostgreSQL | Datos operativos, lecturas, reportes, conexiones, reemplazos y eventos. | Restricciones y transacciones mantienen coherente cada operación. |
+| MongoDB | Un expediente por reporte, con el detalle de sus atenciones. | Agrupa el historial documental y admite campos distintos por tipo de atención. |
+| Neo4j | Proyección de conexiones y reemplazos para recorridos dirigidos. | Expresa ramales y consultas aguas abajo mediante relaciones entre nodos. |
+
+Se eligieron responsabilidades complementarias. Esto no demuestra que los
+otros motores sean incapaces de resolverlas; la integración es parte del
+objetivo académico.
+
+```mermaid
+flowchart TD
+  UI["Interfaz React"] --> API["API NestJS"]
+  API -->|operación y consultas| PG["PostgreSQL"]
+  API -->|consulta de expediente| MO["MongoDB"]
+  API -->|consulta de red| NE["Neo4j"]
+  PG -->|eventos pendientes| SY["Sincronizador"]
+  SY -->|aplica y verifica| MO
+  SY -->|aplica y verifica| NE
+  SY -->|confirma evento| PG
+```
+
+La respuesta de una escritura confirma PostgreSQL. La interfaz espera los
+eventos correspondientes antes de presentar el expediente o la red como
+sincronizados. Consulta el [contrato](docs/api/contrato.md) para los estados
+y errores.
+
+## Comprobar y reproducir
+
+Las [pruebas aisladas](pruebas/README.md) ejecutan el flujo completo y su
+recuperación con los tres motores. La [validación documentada](docs/validacion.md)
+separa pruebas unitarias, HTTP con drivers simulados, ejecución real y
+mediciones históricas. GitHub Actions conserva los resultados de cada nueva
+ejecución como artefactos; no sustituye las evidencias históricas.
+
+La comparación local de `aquasense` y `aquasense_reconstruccion` reportó
+**190 objetos coincidentes**, sin faltantes, adicionales ni diferencias.
+El [resumen](pruebas/evidencias/2026-11-27/comparacion-original-resumen.json)
+se conserva separado de la comparación entre reconstrucciones aisladas.
 
 ## PostgreSQL: estructura y carga base
 
-En una base de datos PostgreSQL nueva:
+La preparación de bases nuevas está en [preparacion-bases.md](docs/preparacion-bases.md).
+Incluye las cantidades de la carga inicial, los pasos de MongoDB y Neo4j y el
+[ejemplo manual de reporte y reemplazo](docs/ejemplo-reporte-reemplazo.md).
+No vuelvas a cargar los scripts sobre las bases usadas para la presentación.
 
-1. Ejecutar, en orden, los archivos `01` a `23`.
-2. Ejecutar los archivos `24` a `27` para cargar los espacios,
-   componentes, conexiones y lecturas de ejemplo.
-3. Ejecutar el archivo `28` para crear la vista de consumo.
-4. Ejecutar los archivos `32`, `33` y `34` para instalar las
-   operaciones de creación, eliminación y actualización de conexiones.
+## Alcance y límites
 
-La carga base esperada contiene:
+Los espacios sirven de referencia académica. Las conexiones, tuberías,
+lecturas y reportes son datos supuestos o de prueba. El diagrama representa
+conectividad; no es un plano técnico ni una simulación de presión o caudal.
+El prototipo no detecta fugas automáticamente ni demuestra ahorro de agua.
 
-| Dato | Cantidad |
-|---|---:|
-| Espacios | 14 |
-| Componentes | 20 |
-| Conexiones | 22 |
-| Lecturas | 7 |
-| Reportes | 0 |
-| Versión de red | 0 |
+La aplicación local utiliza un operador y un sincronizador. La edición
+general de espacios y conexiones, los sensores y una infraestructura pública
+de producción quedan fuera de esta entrega. Una tubería nueva queda preparada
+sin conexiones hasta usarla en un reemplazo.
 
-Los archivos `29`, `30` y `31` pertenecen al ejemplo completo del
-reporte. No se deben ejecutar seguidos sin realizar los pasos
-intermedios descritos más abajo.
+## Equipo
 
-## MongoDB: estructura
+- José Antonio Calvo Aguilar.
+- Uzzi Yazziel Gonzaga Gómez.
 
-En una instalación nueva, ejecutar en este orden:
+Ingeniería en Tecnologías de la Información e Innovación Digital,
+Universidad Politécnica de Chiapas. Docente: Horacio Irán Solís Cisneros.
 
-1. `01_coleccion_expedientes.js`
-2. `02_indice_expedientes.js`
-
-El primer archivo crea la colección y su validación. El segundo crea
-un índice único por `reporteId`.
-
-Los scripts seleccionan la base `aquasense`. Para una reconstrucción
-aislada, usar otra instancia de MongoDB o adaptar el nombre de la base
-en una copia de los scripts. No ejecutar la creación de la colección
-sobre una base que ya la tenga.
-
-Estos archivos no insertan el expediente del ejemplo.
-
-## Neo4j: estructura y carga base
-
-En una base de grafo nueva, ejecutar:
-
-1. `01_restricciones.cypher`
-2. `02_espacios.cypher`
-3. `03_componentes.cypher`
-4. `04_ubicaciones.cypher`
-5. `05_espacios_interiores.cypher`
-6. `06_conexiones.cypher`
-7. `07_control_red.cypher`
-
-Los archivos de carga deben procesar:
-
-| Dato | Cantidad |
-|---|---:|
-| Espacios | 14 |
-| Componentes | 20 |
-| Ubicaciones | 20 |
-| Relaciones entre espacios | 2 |
-| Conexiones de agua | 22 |
-
-El control de red debe quedar en `PENDIENTE_VERIFICACION`, sin versión
-aplicada. Después de comparar la carga con PostgreSQL y comprobar que
-la versión de red de PostgreSQL es `0`, ejecutar:
-
-8. `08_confirmar_version_inicial.cypher`
-
-La carga base representa la red antes del reemplazo: `TUB-03` está
-activa y `TUB-12` todavía no existe.
-
-No ejecutar la carga base sobre un grafo que ya contenga el ejemplo
-de reemplazo. `MERGE` evita algunos duplicados, pero estos archivos
-no reconstruyen ni concilian automáticamente un grafo existente.
-
-## Ejemplo del reporte y reemplazo
-
-El ejemplo completo se ejecutó manualmente en estas etapas:
-
-1. Ejecutar `29_datos_iniciales_reporte.sql` en PostgreSQL.
-2. Crear en MongoDB el expediente correspondiente al evento documental
-   de secuencia `1`; verificarlo y confirmar ese evento en PostgreSQL.
-3. Ejecutar `30_datos_iniciales_inspeccion.sql`.
-4. Agregar la inspección al expediente en MongoDB; verificarla y
-   confirmar el evento documental de secuencia `2` en PostgreSQL.
-5. Ejecutar `31_datos_iniciales_reemplazo.sql`.
-6. Agregar la reparación al expediente en MongoDB y confirmar el evento
-   documental de secuencia `3`.
-7. Aplicar el reemplazo en Neo4j, registrar el evento aplicado y
-   avanzar el control del grafo a la versión `1`. Después, confirmar
-   el evento de grafo en PostgreSQL.
-8. Registrar la verificación en PostgreSQL, agregarla en MongoDB y
-   confirmar el evento documental de secuencia `4`.
-9. Cerrar el reporte en PostgreSQL.
-
-El [procedimiento manual completo](docs/ejemplo-reporte-reemplazo.md)
-reúne los comandos intermedios y las comprobaciones. No es un
-procedimiento de reconstrucción automatizado.
-
-No se debe marcar un evento como procesado sin comprobar que su cambio
-se aplicó en la base de destino.
-
-## Estado actual y límites
-
-### Realizado
-
-- Se reconstruyó la estructura y carga base de PostgreSQL en una base
-  separada. Las 21 funciones y los 6 triggers comparados coincidieron con
-  los de la base original.
-- Se prepararon MongoDB y Neo4j en bases de reconstrucción separadas.
-- Se completó el ejemplo manual de reporte, inspección, reemplazo de
-  tubería, verificación y cierre entre las tres bases.
-- Se implementó un sincronizador que procesa eventos documentales y
-  cambios de red. Su configuración y alcance están descritos en
-  [sincronizador/README.md](sincronizador/README.md).
-- Se probaron la recuperación de algunas interrupciones, el registro de
-  fallos, la reactivación de eventos y la selección ordenada de eventos.
-- Se implementó una API para el escenario del campus. Sus rutas y
-  configuración se describen en [api/README.md](api/README.md).
-- La interfaz permite registrar lecturas, atender reportes y consultar el
-  alcance aguas abajo. Se comprobó el flujo de reemplazo con los tres motores.
-- La red se representa mediante figuras SVG seleccionables. Se comprobó su
-  funcionamiento en escritorio y móvil contra la API y los motores reales.
-- Se automatizó el flujo completo de reporte, inspección, reemplazo,
-  verificación, cierre y consumo, incluida la recuperación sin duplicados
-  después de fallar la confirmación en PostgreSQL. La
-  [guía de pruebas](pruebas/README.md) y las
-  [evidencias del 27 de noviembre](pruebas/evidencias/2026-11-27/README.md)
-  permiten revisar las condiciones y resultados.
-- En el entorno aislado, dos reconstrucciones independientes coincidieron en 12 tablas, 69
-  restricciones, 27 índices, 21 funciones, 6 triggers y 1 vista. El comparador
-  también detectó un índice eliminado dentro de una transacción revertida.
-
-- El responsable ejecutó la comparación local entre `aquasense` y
-  `aquasense_reconstruccion`: coincidieron los 190 objetos exportados,
-  incluidos 12 tablas, 123 restricciones, 27 índices, 21 funciones, 6 triggers
-  y 1 vista, sin objetos faltantes, adicionales ni diferentes. El
-  [resumen reportado](pruebas/evidencias/2026-11-27/comparacion-original-resumen.json)
-  conserva el resultado separado de la prueba aislada.
-
-### Límites del prototipo
-
-- La edición general de espacios y componentes queda fuera del prototipo
-  actual. Las escrituras de la API requieren una credencial de operador local;
-  consulta [api/README.md](api/README.md).
-
-## Contrato para integración
-
-Las rutas, respuestas, credencial de operador y flujo de sincronización están
-en [docs/api/contrato.md](docs/api/contrato.md). El prototipo local permite
-consultas públicas y escrituras de un único operador de mantenimiento.
+La [versión académica 1.0.0](docs/version-1.0.0.md) describe la entrega;
+el [historial de cambios](CHANGELOG.md) conserva sus novedades.

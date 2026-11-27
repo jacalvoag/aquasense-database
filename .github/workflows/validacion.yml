@@ -2,7 +2,7 @@ name: Validación y entrega
 
 on:
   push:
-    branches: [main, feat/presentacion-final]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -76,6 +76,15 @@ jobs:
           cp sincronizador/.env.pruebas.example sincronizador/.env.pruebas
       - name: Ejecutar flujo real y recuperación
         run: npm run test:sistema --prefix sincronizador
+      - name: Comprobar conexiones del lanzador
+        run: |
+          cp sincronizador/.env.pruebas api/.env
+          cp sincronizador/.env.pruebas sincronizador/.env
+          node scripts/comprobar-servicios.mjs
+      - name: Selección, fallos y bloqueo en PostgreSQL aislado
+        run: |
+          docker compose -f pruebas/compose.yaml exec -T postgres createdb -U postgres -T aquasense_pruebas aquasense_reconstruccion
+          PGDATABASE=aquasense_reconstruccion npm run test:integracion --prefix sincronizador
       - name: Instalar Chromium
         run: npx --prefix frontend playwright install --with-deps chromium
       - name: Comprobar red, portada y formularios en el navegador

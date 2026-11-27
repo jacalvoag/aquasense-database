@@ -9,7 +9,9 @@ npm run dev
 
 Abre la URL que muestra Vite. Por defecto se usa `http://localhost:5173` y se consulta la API en `http://127.0.0.1:3000`. Si la URL cambia, copia `.env.example` a `.env.local` y ajusta `VITE_API_BASE_URL`. Esa variable es pública.
 
-La portada comprueba la conexión de la API a las tres bases. Los listados se consultan desde los enlaces de navegación. Para guardar reportes, atenciones, reemplazos, tuberías o lecturas, usa «Acceso de operador». La credencial se conserva en memoria y la API la verifica cuando se envía un POST.
+La portada comprueba la conexión de la API a las tres bases y consulta los reportes pendientes y en atención, los componentes activos y la lectura más reciente. Si una consulta falla, muestra el aviso y no presenta sus cifras como cero. Los listados se consultan desde los enlaces de navegación. Para guardar reportes, atenciones, reemplazos, tuberías o lecturas, usa «Acceso de operador». La credencial se conserva en memoria y la API la verifica cuando se envía un POST.
+
+En **Componentes**, **Registrar tubería para reemplazo** prepara una candidata sin conexiones. Se instala desde un reporte con **Reemplazar tubería**, conservando las conexiones de la anterior. ACTIVO no significa estar conectada; el catálogo muestra ambas condiciones por separado.
 
 El detalle del reporte muestra por separado el estado del reporte, del expediente y de la red. Tras un reemplazo, el cierre se habilita cuando los dos eventos estén procesados y la última verificación documental indique «Sin indicios».
 
