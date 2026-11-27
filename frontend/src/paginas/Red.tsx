@@ -5,6 +5,8 @@ import { ErrorApi, solicitar } from '../api/cliente'
 import type { AlcanceRed, Espacio, NodoRed, SnapshotRed } from '../api/dominio'
 import { Aviso, Badge, EstadoLista } from '../ui'
 import { etiqueta, motivo, useConsulta } from '../operaciones'
+import { FiguraNodo } from '../red/FiguraNodo'
+import '../red/red.css'
 
 const Diagrama = lazy(() => import('../red/Diagrama'))
 
@@ -12,14 +14,16 @@ function PanelNodo({ nodo, alcance, buscando, error }: {
   nodo?: NodoRed; alcance?: AlcanceRed; buscando: boolean; error?: string
 }) {
   const espacios = useConsulta<Espacio[]>(nodo?.clase === 'COMPONENTE' && nodo.espacioId ? '/espacios' : null)
-  if (!nodo) return <aside className="panel detalle-red"><h2>Detalle</h2><p>Selecciona un nodo para ver su información.</p></aside>
+  if (!nodo) return <aside className="panel detalle-red"><h2>Explora la red</h2><p className="seleccion-vacia">Selecciona una figura para consultar sus datos y los espacios que se encuentran aguas abajo.</p></aside>
   return (
     <aside className="panel detalle-red" aria-label="Detalle del nodo" aria-live="polite">
+      <p className="detalle-identidad">{nodo.clase === 'COMPONENTE' ? 'Componente seleccionado' : 'Espacio seleccionado'}</p>
+      <div className="detalle-figura"><FiguraNodo nodo={nodo} /></div>
       <div className="fila">
-        <span className="suave">{nodo.clase === 'COMPONENTE' ? nodo.codigo : 'Espacio'}</span>
+        <h2 className="detalle-codigo">{nodo.clase === 'COMPONENTE' ? nodo.codigo : etiqueta(nodo.tipo)}</h2>
         <Badge valor={nodo.tipo} />
       </div>
-      <h2>{nodo.nombre}</h2>
+      <p className="detalle-nombre">{nodo.nombre}</p>
       {nodo.clase === 'COMPONENTE' && <>
         <dl>
           <div><dt>Estado</dt><dd><Badge valor={nodo.estado} /></dd></div>
@@ -33,7 +37,7 @@ function PanelNodo({ nodo, alcance, buscando, error }: {
           {alcance.espacios.map((espacio) => <li key={espacio.espacioId}><strong>{espacio.nombre}</strong><small>{etiqueta(espacio.tipo)}</small></li>)}
         </ul> : <p>No hay espacios alcanzables desde este componente.</p>)}
       </>}
-      <Link className="boton" to="/reportes/nuevo">Crear reporte</Link>
+      <Link className="boton crear-reporte-red" to="/reportes/nuevo">Crear reporte</Link>
     </aside>
   )
 }
@@ -131,13 +135,16 @@ export function Red() {
               <Suspense fallback={<Aviso>Cargando diagrama…</Aviso>}>
                 <Diagrama red={red} seleccionado={nodo?.id ?? null} alcance={alcance} alSeleccionar={elegir} />
               </Suspense>
-              <div className="leyenda">
+              <div className="leyenda leyenda-red">
                 <span><i />Conexión de agua</span><span><i className="marca-alcance" />Recorrido aguas abajo</span><span><i className="marca-espacio" />Espacio</span>
+                <small>Esquema de conexiones · Figuras simbólicas</small>
               </div>
             </> : <div className="lista-nodos">
               {red.nodos.map((n) => <button type="button" key={n.id} onClick={() => elegir(n.id)}
                 aria-pressed={n.id === nodo?.id} data-resaltado={alcance?.nodoIds.includes(n.id) ?? false}>
-                <strong>{n.clase === 'COMPONENTE' ? n.codigo : etiqueta(n.tipo)}</strong><span>{n.nombre}</span>
+                <span className="nodo-lista"><FiguraNodo nodo={n} /><span>
+                  <strong>{n.clase === 'COMPONENTE' ? n.codigo : etiqueta(n.tipo)}</strong><small>{n.nombre}</small>
+                </span></span>
               </button>)}
             </div>}
           </section>
