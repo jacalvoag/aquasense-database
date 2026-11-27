@@ -25,5 +25,5 @@ export function EstadoLista({ consulta, vacio, children }: {
 }
 
 export function RequiereOperador({ credencial }: Operador) {
-  return !credencial && <Aviso>Ingresa tu credencial en «Acceso de operador» para guardar cambios.</Aviso>
+  return !credencial && <Aviso>Para guardar cambios, ingresa tu credencial en <a href="#acceso-operador">Acceso de operador</a>. Los formularios se habilitarán al continuar.</Aviso>
 }

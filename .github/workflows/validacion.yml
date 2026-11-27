@@ -1,0 +1,172 @@
+name: Validación y entrega
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validacion-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  comprobaciones:
+    name: Comprobaciones de ${{ matrix.proyecto }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        proyecto: [api, sincronizador, frontend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.proyecto }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: ${{ matrix.proyecto }}/package-lock.json
+      - run: npm ci
+      - if: matrix.proyecto == 'api'
+        run: |
+          npm test
+          npm run test:e2e
+          npm run lint
+          npm run build
+      - if: matrix.proyecto == 'sincronizador'
+        run: |
+          npm run check
+          npm test
+          node --test ../herramientas/comparar-estructura.test.mjs ../scripts/configuracion.test.mjs
+      - if: matrix.proyecto == 'frontend'
+        run: |
+          npm run lint
+          npm run build
+
+  sistema:
+    name: Sistema e interfaz con tres motores
+    needs: comprobaciones
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: |
+            api/package-lock.json
+            sincronizador/package-lock.json
+            frontend/package-lock.json
+      - name: Instalar y compilar
+        run: |
+          npm ci --prefix api
+          npm ci --prefix sincronizador
+          npm ci --prefix frontend
+          npm run build --prefix api
+      - name: Preparar motores aislados
+        run: |
+          docker compose -f pruebas/compose.yaml up -d --wait --wait-timeout 240
+          cp sincronizador/.env.pruebas.example sincronizador/.env.pruebas
+      - name: Ejecutar flujo real y recuperación
+        run: npm run test:sistema --prefix sincronizador
+      - name: Comprobar conexiones del lanzador
+        run: |
+          cp sincronizador/.env.pruebas api/.env
+          cp sincronizador/.env.pruebas sincronizador/.env
+          node scripts/comprobar-servicios.mjs
+      - name: Selección, fallos y bloqueo en PostgreSQL aislado
+        run: |
+          docker compose -f pruebas/compose.yaml exec -T postgres createdb -U postgres -T aquasense_pruebas aquasense_reconstruccion
+          PGDATABASE=aquasense_reconstruccion npm run test:integracion --prefix sincronizador
+      - name: Instalar Chromium
+        run: npx --prefix frontend playwright install --with-deps chromium
+      - name: Comprobar red, portada y formularios en el navegador
+        shell: bash
+        run: |
+          node --env-file=sincronizador/.env.pruebas api/dist/main.js > pruebas/resultados/api-ci.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for intento in {1..45}; do
+            if curl --silent --fail --max-time 2 http://127.0.0.1:3001/salud/neo4j > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail --max-time 5 http://127.0.0.1:3001/salud/neo4j
+          npm run test:visual --prefix frontend
+      - name: Conservar resultados y capturas
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: validacion-sistema-${{ github.run_number }}
+          path: pruebas/resultados/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Detener solo los motores de pruebas
+        if: always()
+        run: docker compose -f pruebas/compose.yaml down -v
+
+  windows:
+    name: Lanzador de Windows
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: |
+            api/package-lock.json
+            sincronizador/package-lock.json
+            frontend/package-lock.json
+      - name: Instalar dependencias
+        shell: pwsh
+        run: |
+          foreach ($proyecto in @('api', 'sincronizador', 'frontend')) {
+            npm ci --prefix $proyecto
+            if ($LASTEXITCODE -ne 0) { throw "Falló npm ci de $proyecto" }
+          }
+      - name: Revisar sintaxis y configuración sin iniciar servicios
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errores = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'iniciar.ps1'), [ref]$tokens, [ref]$errores)
+          if ($errores.Count -gt 0) { throw ($errores | Out-String) }
+          Copy-Item sincronizador/.env.pruebas.example api/.env
+          Copy-Item sincronizador/.env.pruebas.example sincronizador/.env
+          .\iniciar.ps1 -SoloComprobar
+
+  publicar:
+    name: Publicar versión académica
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [comprobaciones, sistema, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Publicar la versión si todavía no existe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'VERSION debe contener una versión semántica válida.'
+            exit 1
+          fi
+          etiqueta="v$version"
+          if gh release view "$etiqueta" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "La versión $etiqueta ya está publicada."
+            exit 0
+          fi
+          gh release create "$etiqueta" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "AquaSense $etiqueta" --notes-file docs/version-1.0.0.md
