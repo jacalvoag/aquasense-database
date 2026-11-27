@@ -28,17 +28,17 @@ function FormularioConexion({ componentes, espacios, conexiones, editando, orige
     && !otras.some((v) => v.componente_destino_id === c.componente_id))
   const destinosEspacio = espacios.filter((e) => !otras.some((c) => c.espacio_destino_id === e.espacio_id))
   return <form onSubmit={guardar}><fieldset disabled={bloqueado}>
-    <label>Componente de origen<select name="origen" value={origen} required onChange={(e) => { setOrigen(e.target.value); setClase('COMPONENTE') }}>
+    <label>Componente de origen<select aria-label="Componente de origen" name="origen" value={origen} required onChange={(e) => { setOrigen(e.target.value); setClase('COMPONENTE') }}>
       <option value="">Elige el origen del agua</option>
       {activos.filter((c) => c.tipo === 'UNION' || !otras.some((v) => v.componente_origen_id === c.componente_id))
         .map((c) => <option key={c.componente_id} value={c.componente_id}>{c.codigo} · {c.nombre}</option>)}
     </select></label>
-    <label>Tipo de destino<select name="clase" value={clase} onChange={(e) => setClase(e.target.value as typeof clase)}>
+    <label>Tipo de destino<select aria-label="Tipo de destino" name="clase" value={clase} onChange={(e) => setClase(e.target.value as typeof clase)}>
       <option value="COMPONENTE">Componente</option><option value="ESPACIO" disabled={tipo !== 'TUBERIA'}>Espacio abastecido</option>
     </select></label>
-    {clase === 'COMPONENTE' ? <label>Componente de destino<select key={origen} name="destino" required defaultValue={editando?.componente_destino_id ?? ''}>
+    {clase === 'COMPONENTE' ? <label>Componente de destino<select aria-label="Componente de destino" key={origen} name="destino" required defaultValue={editando?.componente_destino_id ?? ''}>
       <option value="">Elige un componente compatible</option>{destinos.map((c) => <option key={c.componente_id} value={c.componente_id}>{c.codigo} · {c.nombre}</option>)}
-    </select></label> : <label>Espacio de destino<select name="destino" required defaultValue={editando?.espacio_destino_id ?? ''}>
+    </select></label> : <label>Espacio de destino<select aria-label="Espacio de destino" name="destino" required defaultValue={editando?.espacio_destino_id ?? ''}>
       <option value="">Elige el espacio abastecido</option>{destinosEspacio.map((e) => <option key={e.espacio_id} value={e.espacio_id}>{e.nombre}</option>)}
     </select></label>}
     <p className="ayuda-formulario">Solo las uniones permiten ramales y solo una tubería puede abastecer directamente a un espacio. Cada destino admite una entrada. La base rechaza ciclos y combinaciones incompatibles.</p>

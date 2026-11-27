@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test('registra espacios y componentes, conecta y actualiza el diagrama sin recargar', async ({ page, request }, info) => {
   test.setTimeout(120_000)
+  page.setDefaultTimeout(15_000)
   const sufijo = Date.now().toString()
   const nombreZona = `Zona UI ${sufijo}`, codigo = `UI-TUB-${sufijo}`
   const clave = 'operador-solo-pruebas'

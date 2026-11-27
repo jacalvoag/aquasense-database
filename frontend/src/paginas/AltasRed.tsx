@@ -26,10 +26,10 @@ export function AltaEspacio({ credencial, espacios, alGuardar }: Operador & { es
     <RequiereOperador credencial={credencial} />
     <form onSubmit={guardar}><fieldset disabled={!credencial || escritura.ocupado || cambio.pendiente}>
       <label>Nombre del espacio<input name="nombre" required maxLength={150} /></label>
-      <label>Tipo de espacio<select name="tipo" defaultValue="OTRO">
+      <label>Tipo de espacio<select aria-label="Tipo de espacio" name="tipo" defaultValue="OTRO">
         {['EDIFICIO', 'BAÑO', 'LABORATORIO', 'OFICINA', 'CAFETERIA', 'ZONA_RIEGO', 'OTRO'].map((t) => <option key={t} value={t}>{etiqueta(t)}</option>)}
       </select></label>
-      <label>Espacio contenedor<select name="contenedor"><option value="">Sin contenedor</option><EspaciosOpciones espacios={espacios} /></select></label>
+      <label>Espacio contenedor<select aria-label="Espacio contenedor" name="contenedor"><option value="">Sin contenedor</option><EspaciosOpciones espacios={espacios} /></select></label>
       <label>Descripción<textarea name="descripcion" maxLength={4000} rows={2} /></label>
       <button type="submit" className="primario">Registrar espacio</button>
     </fieldset></form>
@@ -52,13 +52,13 @@ export function AltaComponente({ credencial, espacios, alGuardar }: Operador & {
     <p className="ayuda-formulario">El componente se registra sin conexiones. Después puedes <Link to="/conexiones">conectarlo a la red</Link>. Si es una tubería, también puedes instalarla mediante «Reemplazar tubería» en un reporte.</p>
     <RequiereOperador credencial={credencial} />
     <form onSubmit={guardar}><fieldset disabled={!credencial || escritura.ocupado || cambio.pendiente}>
-      <label>Tipo de componente<select value={tipo} onChange={(e) => setTipo(e.target.value)}>
+      <label>Tipo de componente<select aria-label="Tipo de componente" value={tipo} onChange={(e) => setTipo(e.target.value)}>
         {['CISTERNA', 'TUBERIA', 'UNION', 'VALVULA', 'MEDIDOR'].map((t) => <option key={t} value={t}>{etiqueta(t)}</option>)}
       </select></label>
       <label>Código<input name="codigo" maxLength={40} required /></label>
       <label>Nombre<input name="nombre" maxLength={150} required /></label>
-      <label>Ubicación<select name="espacio"><option value="">Sin ubicación</option><EspaciosOpciones espacios={espacios} /></select></label>
-      {tipo === 'VALVULA' && <label>Posición registrada<select name="posicion" defaultValue="DESCONOCIDA">
+      <label>Ubicación<select aria-label="Ubicación" name="espacio"><option value="">Sin ubicación</option><EspaciosOpciones espacios={espacios} /></select></label>
+      {tipo === 'VALVULA' && <label>Posición registrada<select aria-label="Posición registrada" name="posicion" defaultValue="DESCONOCIDA">
         {['DESCONOCIDA', 'ABIERTA', 'CERRADA'].map((p) => <option value={p} key={p}>{etiqueta(p)}</option>)}
       </select></label>}
       {tipo === 'MEDIDOR' && <p>Las lecturas se registrarán en m³ desde Lecturas.</p>}
