@@ -1,0 +1,34 @@
+{
+  "fechaReporte": "2026-11-27",
+  "fuente": "Salida de PowerShell compartida por el responsable tras ejecutar localmente las herramientas del repositorio.",
+  "bases": {
+    "original": "aquasense",
+    "reconstruccion": "aquasense_reconstruccion"
+  },
+  "objetosExportadosPorBase": 190,
+  "snapshotsLocalesIncluidos": false,
+  "resultado": {
+    "coinciden": true,
+    "cantidades": {
+      "original": {
+        "funcion": 21,
+        "indice": 27,
+        "restriccion": 123,
+        "tabla": 12,
+        "trigger": 6,
+        "vista": 1
+      },
+      "reconstruccion": {
+        "funcion": 21,
+        "indice": 27,
+        "restriccion": 123,
+        "tabla": 12,
+        "trigger": 6,
+        "vista": 1
+      }
+    },
+    "faltantes": 0,
+    "adicionales": 0,
+    "diferentes": 0
+  }
+}

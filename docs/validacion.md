@@ -52,4 +52,18 @@ El registro interno `contexto/paso-7/` conserva el procedimiento, el script, la 
 - Los tiempos describen una carga local pequeña y secuencial. Quedan fuera de la medición la concurrencia, el tiempo visual del navegador, las escrituras, la sincronización y el consumo de recursos durante cada operación.
 - El escenario académico no permite estimar ahorro de agua ni precisión en detección de fugas.
 - La instalación probada usa una credencial de operador local y un único sincronizador. La edición general de espacios y componentes queda fuera del prototipo.
-- Las pruebas HTTP de desarrollo usan drivers simulados. Los nueve casos de esta matriz cubren un flujo integrado real. La reconstrucción de tablas, restricciones e índices de PostgreSQL está pendiente de una comparación completa con la base original.
+- Las pruebas HTTP de desarrollo usan drivers simulados. Los nueve casos de esta matriz cubren un flujo integrado real.
+
+## Comparación con la base PostgreSQL original
+
+El 27 de noviembre, el responsable ejecutó localmente las herramientas de
+exportación de solo lectura y comparación entre `aquasense` y
+`aquasense_reconstruccion`. La salida compartida indicó `coinciden: true`:
+190 objetos en cada base, sin faltantes, adicionales ni diferencias. Incluyó
+12 tablas, 123 restricciones, 27 índices, 21 funciones, 6 triggers y 1 vista.
+
+Se conserva el [resumen de esa salida](../pruebas/evidencias/2026-11-27/comparacion-original-resumen.json).
+Los snapshots completos y sus hashes permanecen en los archivos locales
+generados en el equipo del responsable; no se aportaron en esta revisión.
+Las cantidades de este inventario local se mantienen separadas del inventario
+de 136 objetos de la ejecución aislada en PostgreSQL 16.15.

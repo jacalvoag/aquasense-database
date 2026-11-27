@@ -39,6 +39,12 @@ la reproducibilidad de los scripts, no la coincidencia con aquella base.
 `ROLLBACK`. También se comprobó el exportador Node con dos bases reales nuevas.
 
 `manifest.json` permite verificar tamaños y hashes SHA-256 de los archivos.
+`comparacion-original-resumen.json` conserva por separado la salida compartida
+por el responsable al comparar sus bases locales `aquasense` y
+`aquasense_reconstruccion`: 190 objetos coincidentes, sin diferencias. Incluye
+123 restricciones en cada base. No contiene sus snapshots ni hashes originales,
+y no debe confundirse con la comparación aislada de dos reconstrucciones.
+
 Las capturas corresponden al estado posterior al reemplazo:
 
 ![Red de escritorio con la tubería instalada](red-escritorio.png)

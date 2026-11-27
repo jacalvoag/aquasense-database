@@ -1,6 +1,11 @@
 {
-  "escenario": "Ejecución aislada nativa, sin mocks; las estructuras comparadas son dos reconstrucciones independientes.",
+  "escenario": "Ejecución aislada nativa sin mocks y resumen local reportado por el responsable; cada evidencia identifica su procedencia.",
   "archivos": [
+    {
+      "archivo": "comparacion-original-resumen.json",
+      "bytes": 796,
+      "sha256": "2bc822bca9df32fb3475a6a71a9e11b96cef38ae6e9d01f3022ba8f98c0d8676"
+    },
     {
       "archivo": "comparacion-reconstrucciones.json",
       "bytes": 637,
