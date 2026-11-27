@@ -25,3 +25,9 @@ Para revisar la vista:
 - Actualiza la red después de un reemplazo confirmado. Si la API informa de cambios pendientes o indisponibilidad, se muestra el error y se permite reintentar.
 
 Verifica con `npm run lint` y `npm run build`.
+
+La prueba de navegador `npm run test:visual` consulta servicios reales. Requiere
+el estado final de `test:sistema`, la API en el puerto 3001 y Chromium instalado
+mediante `npx playwright install chromium`. Consulta los comandos completos en
+[pruebas/README.md](../pruebas/README.md). El resultado y las capturas quedan en
+`pruebas/resultados/`, fuera del control de versiones.
