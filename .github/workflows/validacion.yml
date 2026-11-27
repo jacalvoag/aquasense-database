@@ -81,6 +81,8 @@ jobs:
           cp sincronizador/.env.pruebas api/.env
           cp sincronizador/.env.pruebas sincronizador/.env
           node scripts/comprobar-servicios.mjs
+          node --env-file=sincronizador/.env.pruebas herramientas/actualizar-red.mjs --aplicar
+          node --env-file=sincronizador/.env.pruebas herramientas/actualizar-red.mjs --comprobar
       - name: Selección, fallos y bloqueo en PostgreSQL aislado
         run: |
           docker compose -f pruebas/compose.yaml exec -T postgres createdb -U postgres -T aquasense_pruebas aquasense_reconstruccion
@@ -92,7 +94,9 @@ jobs:
         run: |
           node --env-file=sincronizador/.env.pruebas api/dist/main.js > pruebas/resultados/api-ci.log 2>&1 &
           api_pid=$!
-          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          (cd sincronizador && exec node --env-file=.env.pruebas --import tsx src/index.ts) > pruebas/resultados/sincronizador-ui.log 2>&1 &
+          worker_pid=$!
+          trap 'kill "$api_pid" "$worker_pid" 2>/dev/null || true' EXIT
           for intento in {1..45}; do
             if curl --silent --fail --max-time 2 http://127.0.0.1:3001/salud/neo4j > /dev/null; then
               break
@@ -169,4 +173,4 @@ jobs:
             echo "La versión $etiqueta ya está publicada."
             exit 0
           fi
-          gh release create "$etiqueta" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "AquaSense $etiqueta" --notes-file docs/version-1.0.0.md
+          gh release create "$etiqueta" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "AquaSense $etiqueta" --notes-file "docs/version-${version}.md"

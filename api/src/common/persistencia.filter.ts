@@ -29,7 +29,10 @@ export class PersistenciaFilter implements ExceptionFilter {
         : '';
     let statusCode = 500,
       message = 'No fue posible completar la operación.';
-    if (code === '23505') {
+    if (code === '42883') {
+      statusCode = 503;
+      message = 'La base necesita las migraciones de red 35 y 36. Solicita al responsable que las aplique.';
+    } else if (code === '23505') {
       statusCode = 409;
       message =
         'Existe un registro en conflicto o un evento documental pendiente. Revisa su estado antes de continuar.';

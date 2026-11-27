@@ -67,3 +67,18 @@ Los snapshots completos y sus hashes permanecen en los archivos locales
 generados en el equipo del responsable; no se aportaron en esta revisión.
 Las cantidades de este inventario local se mantienen separadas del inventario
 de 136 objetos de la ejecución aislada en PostgreSQL 16.15.
+
+## Ampliación de red dinámica, versión 1.1.0
+
+Se incorporan pruebas para crear espacios y los cinco tipos de componentes,
+comprobar sus subtipos, crear/modificar/eliminar conexiones y rechazar ciclos,
+duplicados, incompatibilidades y retirados. El flujo real también ensaya la
+recuperación del alta de un espacio y un reemplazo cuya candidata ya tiene
+nodo en Neo4j. Se conserva compatibilidad con candidatas antiguas.
+
+El navegador registra un espacio y una tubería, comprueba persistencia al
+recargar, conecta un ramal y observa un cambio de destino desde otro cliente
+sin recargar el diagrama. Finalmente elimina la conexión desde la interfaz.
+La salida `red-dinamica.json`, logs y capturas se generan en
+`pruebas/resultados/` y se conservan como artefactos en GitHub Actions.
+Estas comprobaciones se mantienen separadas de las mediciones del 25 de noviembre.

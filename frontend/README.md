@@ -11,7 +11,7 @@ Abre la URL que muestra Vite. Por defecto se usa `http://localhost:5173` y se co
 
 La portada comprueba la conexión de la API a las tres bases y consulta los reportes pendientes y en atención, los componentes activos y la lectura más reciente. Si una consulta falla, muestra el aviso y no presenta sus cifras como cero. Los listados se consultan desde los enlaces de navegación. Para guardar reportes, atenciones, reemplazos, tuberías o lecturas, usa «Acceso de operador». La credencial se conserva en memoria y la API la verifica cuando se envía un POST.
 
-En **Componentes**, **Registrar tubería para reemplazo** prepara una candidata sin conexiones. Se instala desde un reporte con **Reemplazar tubería**, conservando las conexiones de la anterior. ACTIVO no significa estar conectada; el catálogo muestra ambas condiciones por separado.
+En **Espacios** y **Componentes** puedes registrar nuevos elementos. Los componentes nacen sin conexiones. En **Conexiones** puedes crear, cambiar y eliminar sus enlaces respetando las reglas de la red. Una tubería también se instala desde un reporte con **Reemplazar tubería**, conservando las conexiones de la anterior. ACTIVO no significa estar conectada; el catálogo muestra ambas condiciones por separado.
 
 El detalle del reporte muestra por separado el estado del reporte, del expediente y de la red. Tras un reemplazo, el cierre se habilita cuando los dos eventos estén procesados y la última verificación documental indique «Sin indicios».
 
@@ -24,7 +24,7 @@ Para revisar la vista:
 - Selecciona una figura con el ratón o con Tab y Enter. Comprueba el panel de detalle y el recorrido aguas abajo en turquesa.
 - Usa los controles de zoom, el ajuste a la vista y «Limpiar selección».
 - Cambia entre diagrama y lista. En pantallas pequeñas se abre inicialmente la lista, con las mismas figuras y datos.
-- Actualiza la red después de un reemplazo confirmado. Si la API informa de cambios pendientes o indisponibilidad, se muestra el error y se permite reintentar.
+- La red consulta versiones cada dos segundos y actualiza los cambios confirmados. Si la API informa de cambios pendientes o indisponibilidad, se muestra el error y se permite reintentar.
 
 Verifica con `npm run lint` y `npm run build`.
 
@@ -33,3 +33,7 @@ el estado final de `test:sistema`, la API en el puerto 3001 y Chromium instalado
 mediante `npx playwright install chromium`. Consulta los comandos completos en
 [pruebas/README.md](../pruebas/README.md). El resultado y las capturas quedan en
 `pruebas/resultados/`, fuera del control de versiones.
+
+La [guía de red dinámica](../docs/red-dinamica.md) incluye las migraciones y un
+ensayo completo de registro y conexiones. La prueba visual de escrituras
+requiere un sincronizador continuo dirigido a las bases aisladas.

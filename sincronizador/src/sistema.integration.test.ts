@@ -192,7 +192,7 @@ test('flujo real entre API, sincronizador, PostgreSQL, MongoDB y Neo4j', { timeo
   assert.equal((await api(`${ruta}/eventos/${reemplazo.eventoGrafoId}`, 200)).estado, 'PENDIENTE');
   const aplicados = await sesion.run('MATCH (e:EventoAplicado {eventoId: $id}) RETURN count(e) AS cantidad', { id: reemplazo.eventoGrafoId });
   assert.equal(aplicados.records[0].get('cantidad').toNumber(), 1);
-  await postgres.query('DROP TRIGGER fallo_confirmacion_prueba ON aquasense.evento_salida; DROP FUNCTION aquasense.fallo_confirmacion_prueba()');
+  await postgres.query('DROP TRIGGER fallo_confirmacion_prueba ON aquasense.evento_salida');
   await postgres.query('UPDATE aquasense.evento_salida SET proximo_intento_en = CURRENT_TIMESTAMP WHERE evento_id = $1', [reemplazo.eventoGrafoId]);
   await ciclo();
   const alcanceDespues = await api(`/red/componentes/${nueva.componenteId}/alcance`, 200);
@@ -228,9 +228,104 @@ test('flujo real entre API, sincronizador, PostgreSQL, MongoDB y Neo4j', { timeo
   assert.equal(await baseMongo.collection('expedientes').countDocuments({ reporteId: reporte.reporteId }), 1);
   registrar('lectura acumulada, consumo de 2.500 m³ y ciclo sin eventos pendientes');
 
+  // Construir un ramal nuevo sin insertar datos manualmente en los catálogos.
+  async function sincronizar() {
+    for (let i = 0; i < 40; i++) {
+      const estado = await api('/red/estado', 200);
+      assert.equal(estado.errores, 0);
+      if (!estado.pendientes) return;
+      await ciclo();
+    }
+    assert.fail('La cola de red no terminó.');
+  }
+  const zona = await api('/espacios', 201, { nombre: 'Zona dinámica integral', tipo: 'ZONA_RIEGO', espacioContenedorId: '10000000-0000-0000-0000-000000000001' });
+  await api('/red', 503);
+  await postgres.query("CREATE TRIGGER fallo_confirmacion_prueba BEFORE UPDATE ON aquasense.evento_salida FOR EACH ROW WHEN (NEW.destino = 'GRAFO') EXECUTE FUNCTION aquasense.fallo_confirmacion_prueba()");
+  await ciclo(true);
+  assert.equal((await api(`/red/eventos/${zona.eventoId}`, 200)).estado, 'PENDIENTE');
+  await postgres.query('DROP TRIGGER fallo_confirmacion_prueba ON aquasense.evento_salida');
+  await postgres.query('UPDATE aquasense.evento_salida SET proximo_intento_en = CURRENT_TIMESTAMP WHERE evento_id = $1', [zona.eventoId]);
+  await sincronizar();
+  const nodoZona = await sesion.run('MATCH (e:Espacio {espacioId: $id})-[:ESTA_DENTRO_DE]->(:Espacio) RETURN count(e) AS cantidad', { id: zona.espacioId });
+  assert.equal(nodoZona.records[0].get('cantidad').toNumber(), 1);
+  const otraZona = await api('/espacios', 201, { nombre: 'Segundo espacio dinámico', tipo: 'ZONA_RIEGO' });
+  const nuevos: Record<string, { componenteId: string; codigo: string }> = {};
+  for (const tipo of ['CISTERNA', 'TUBERIA', 'UNION', 'VALVULA', 'MEDIDOR']) {
+    nuevos[tipo] = await api('/componentes', 201, { codigo: `DIN-${tipo}`, nombre: `Componente dinámico ${tipo}`, tipo, espacioId: zona.espacioId,
+      ...(tipo === 'VALVULA' ? { posicion: 'ABIERTA' } : {}) });
+  }
+  await sincronizar();
+  assert.equal((await postgres.query('SELECT unidad FROM aquasense.medidor WHERE componente_id = $1', [nuevos.MEDIDOR.componenteId])).rows[0].unidad, 'm3');
+  const valvula = (await postgres.query('SELECT posicion, posicion_registrada_en FROM aquasense.valvula WHERE componente_id = $1', [nuevos.VALVULA.componenteId])).rows[0];
+  assert.equal(valvula.posicion, 'ABIERTA'); assert.ok(valvula.posicion_registrada_en);
+  // La FK y el evento deben deshacerse juntos si el espacio no existe.
+  const previo = (await api('/componentes', 200)).length;
+  await api('/componentes', 404, { codigo: 'NO-DEBE-QUEDAR', nombre: 'Inválido', tipo: 'MEDIDOR', espacioId: 'ffffffff-ffff-ffff-ffff-ffffffffffff' });
+  assert.equal((await api('/componentes', 200)).length, previo);
+  registrar('altas: espacio recuperado sin duplicar, cinco tipos y subtipos atómicos');
+
+  const unionId = '20000000-0000-0000-0000-000000000003';
+  const entrada = await api('/conexiones', 201, { componenteOrigenId: unionId, componenteDestinoId: nuevos.TUBERIA.componenteId });
+  let salida = await api('/conexiones', 201, { componenteOrigenId: nuevos.TUBERIA.componenteId, espacioDestinoId: zona.espacioId });
+  await sincronizar();
+  const ramal = await api(`/red/componentes/${unionId}/alcance`, 200);
+  assert.ok(ramal.espacios.some((e: { espacioId: string }) => e.espacioId === zona.espacioId));
+  await api('/conexiones', 409, { componenteOrigenId: nuevos.CISTERNA.componenteId, componenteDestinoId: nuevos.TUBERIA.componenteId });
+  await api('/conexiones', 422, { componenteOrigenId: nuevos.CISTERNA.componenteId, componenteDestinoId: nuevos.MEDIDOR.componenteId });
+  await api('/conexiones', 422, { componenteOrigenId: anteriorId, componenteDestinoId: nuevos.VALVULA.componenteId });
+  // Una candidata creada por la ruta antigua también se puede conectar.
+  const legada = await api('/componentes/tuberias', 201, { codigo: 'DIN-LEGADA', nombre: 'Candidata anterior', espacioId: zona.espacioId });
+  const temporal = await api('/conexiones', 201, { componenteOrigenId: nuevos.UNION.componenteId, componenteDestinoId: legada.componenteId });
+  await sincronizar();
+  await api('/conexiones', 422, { componenteOrigenId: legada.componenteId, componenteDestinoId: nuevos.UNION.componenteId });
+  await api(`/conexiones/${temporal.conexionId}/eliminar`, 200, undefined, 'POST');
+  await sincronizar();
+  const eventosAntes = (await postgres.query('SELECT count(*)::int AS n FROM aquasense.evento_salida')).rows[0].n;
+  await api(`/conexiones/${salida.conexionId}/actualizar`, 409, { componenteOrigenId: nuevos.TUBERIA.componenteId, espacioDestinoId: espacioId });
+  assert.equal((await postgres.query('SELECT count(*)::int AS n FROM aquasense.evento_salida')).rows[0].n, eventosAntes);
+  await api(`/conexiones/${salida.conexionId}/actualizar`, 201, { componenteOrigenId: nuevos.TUBERIA.componenteId, espacioDestinoId: otraZona.espacioId });
+  await sincronizar();
+  assert.deepEqual((await api(`/red/componentes/${nuevos.TUBERIA.componenteId}/alcance`, 200)).espacios.map((e: { espacioId: string }) => e.espacioId), [otraZona.espacioId]);
+  await api(`/conexiones/${salida.conexionId}/eliminar`, 200, undefined, 'POST');
+  await sincronizar();
+  assert.equal((await api(`/red/componentes/${nuevos.TUBERIA.componenteId}/alcance`, 200)).espacios.length, 0);
+  salida = await api('/conexiones', 201, { componenteOrigenId: nuevos.TUBERIA.componenteId, espacioDestinoId: otraZona.espacioId });
+  await sincronizar();
+  assert.ok((await api('/conexiones', 200)).some((c: { conexion_id: string }) => c.conexion_id === entrada.conexionId));
+  registrar('conexiones: alta, cambio, eliminación y rechazos de ciclos, duplicados, tipos y retirados');
+
+  const candidata = await api('/componentes', 201, { codigo: 'DIN-REEMPLAZO', nombre: 'Reemplazo con nodo existente', tipo: 'TUBERIA', espacioId: otraZona.espacioId });
+  await sincronizar();
+  const segundoReporte = await api('/reportes', 201, { espacioId: otraZona.espacioId, descripcionInicial: 'Mantenimiento del ramal registrado desde la API.' });
+  const rutaNueva = `/reportes/${segundoReporte.reporteId}`;
+  await ciclo();
+  await api(`${rutaNueva}/atenciones`, 201, { tipo: 'INSPECCION', fecha: fecha(), descripcion: 'Inspección dinámica.', hallazgos: 'Prueba académica.' });
+  await ciclo();
+  const reemplazoNuevo = await api(`${rutaNueva}/reemplazo`, 201, { tuberiaAnteriorId: nuevos.TUBERIA.componenteId, tuberiaNuevaId: candidata.componenteId, fecha: fecha(), descripcion: 'Instalar candidata ya sincronizada.' });
+  await postgres.query("CREATE TRIGGER fallo_confirmacion_prueba BEFORE UPDATE ON aquasense.evento_salida FOR EACH ROW WHEN (NEW.destino = 'GRAFO') EXECUTE FUNCTION aquasense.fallo_confirmacion_prueba()");
+  await ciclo(true);
+  await postgres.query('DROP TRIGGER fallo_confirmacion_prueba ON aquasense.evento_salida');
+  await postgres.query('UPDATE aquasense.evento_salida SET proximo_intento_en = CURRENT_TIMESTAMP WHERE evento_id = $1', [reemplazoNuevo.eventoGrafoId]);
+  await sincronizar();
+  const instalada = await sesion.run('MATCH (n:Componente {componenteId: $id}) OPTIONAL MATCH (n)-[r:REEMPLAZA_A]->() RETURN count(DISTINCT n) AS nodos, count(r) AS reemplazos', { id: candidata.componenteId });
+  assert.equal(instalada.records[0].get('nodos').toNumber(), 1); assert.equal(instalada.records[0].get('reemplazos').toNumber(), 1);
+  assert.equal((await api(`/red/componentes/${candidata.componenteId}/alcance`, 200)).espacios[0].espacioId, otraZona.espacioId);
+  await api(`${rutaNueva}/atenciones`, 201, { tipo: 'VERIFICACION', fecha: fecha(), descripcion: 'Ramal verificado.', resultado: 'SIN_INDICIOS' });
+  await ciclo(); await api(`${rutaNueva}/cerrar`, 200, undefined, 'POST');
+  await api('/lecturas', 201, { medidorId: nuevos.MEDIDOR.componenteId, fechaHora: fecha(), valorAcumulado: '10.000' });
+  await esperar(5);
+  await api('/lecturas', 201, { medidorId: nuevos.MEDIDOR.componenteId, fechaHora: fecha(), valorAcumulado: '12.500' });
+  assert.equal((await api('/lecturas', 200)).find((l: { medidor_id: string; valor_acumulado: string }) => l.medidor_id === nuevos.MEDIDOR.componenteId && l.valor_acumulado === '12.500').consumo_m3, '2.500');
+  registrar('ramal nuevo: reemplazo de nodo existente recuperable, cierre y lecturas del medidor nuevo');
+  const redFinal = await api('/red', 200);
+  assert.equal((await api('/red/estado', 200)).pendientes, 0);
   await mkdir(resultados, { recursive: true });
-  await writeFile(join(resultados, 'identificadores.json'), JSON.stringify({ reporteId: reporte.reporteId, nuevaId: nueva.componenteId, codigoNueva: nueva.codigo, versionRed: '1' }, null, 2));
+  await writeFile(join(resultados, 'red-dinamica.json'), JSON.stringify({ espacioId: otraZona.espacioId, componenteId: candidata.componenteId, reporteId: segundoReporte.reporteId, versionRed: redFinal.versionRed, nuevosTipos: Object.keys(nuevos), finalizado: true }, null, 2));
+
+  await mkdir(resultados, { recursive: true });
+  await writeFile(join(resultados, 'identificadores.json'), JSON.stringify({ reporteId: reporte.reporteId, nuevaId: nueva.componenteId, codigoNueva: nueva.codigo, versionRed: redFinal.versionRed }, null, 2));
   const estructura = await postgres.query(await readFile(join(raiz, 'herramientas/exportar-estructura.sql'), 'utf8'));
   await writeFile(join(resultados, 'estructura-reconstruida.json'), JSON.stringify(estructura.rows[0].estructura, null, 2));
+  await postgres.query('DROP FUNCTION aquasense.fallo_confirmacion_prueba()');
   finalizado = true;
 });

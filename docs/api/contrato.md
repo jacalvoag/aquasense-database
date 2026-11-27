@@ -126,3 +126,79 @@ el flujo integrado. El cierre SQL valida lo documental, no la confirmación de t
 7. Consultar listado de reportes y expediente. Conservar IDs y evidencia de la prueba.
 
 El escenario usa datos académicos ficticios. Sigue la [guía local](../ejecucion-local.md) y ejecuta una sola instancia del sincronizador. Consulta el [informe de validación](../validacion.md).
+
+## Registro y administración de la red (1.1.0)
+
+Requiere las migraciones 35 y 36. Las nuevas escrituras conservan la misma
+credencial de operador y no escriben directamente en Neo4j desde la API.
+
+### POST /espacios
+
+Entrada: `{nombre, tipo, espacioContenedorId?, descripcion?}`. Nombre no vacío,
+hasta 150 caracteres; descripción opcional no vacía de hasta 4000 caracteres.
+Tipos: EDIFICIO, BAÑO, LABORATORIO, OFICINA, CAFETERIA, ZONA_RIEGO, OTRO.
+El contenedor debe existir. Omitir los campos opcionales cuando no se utilizan.
+Respuesta 201: `{espacioId, eventoId, nombre, tipo, estadoGrafoInicial:"PENDIENTE"}`.
+
+### POST /componentes
+
+Entrada: `{codigo, nombre, tipo, espacioId?, descripcion?, posicion?}`. Código
+único de hasta 40 caracteres, normalizado a mayúsculas; nombre no vacío de
+hasta 150; descripción opcional de hasta 4000. Tipos: CISTERNA, TUBERIA, UNION,
+VALVULA, MEDIDOR. `posicion` solo para VALVULA: ABIERTA, CERRADA o DESCONOCIDA
+(predeterminada). Se crean el componente, su subtipo cuando corresponde y el
+evento en la misma operación. El medidor usa m³. La posición de la válvula es
+un registro manual, no una medición en tiempo real.
+
+Respuesta 201: `{componenteId, eventoId, codigo, nombre, tipo, estado:"ACTIVO",
+estadoGrafoInicial:"PENDIENTE"}`. Queda sin conexiones. Esta ruta admite tanto
+componentes para ramales nuevos como tuberías para reemplazos.
+
+La ruta anterior `/componentes/tuberias` se mantiene por compatibilidad con
+su respuesta previa y sin evento de alta. Conectar o reemplazar una candidata
+antigua permite incorporar su nodo al grafo mediante snapshots del evento.
+
+### GET /conexiones
+
+Lista de `{conexion_id, componente_origen_id, componente_destino_id,
+espacio_destino_id, origen_codigo, origen_nombre, destino_codigo,
+destino_nombre, destino_clase}`. `destino_clase` es COMPONENTE o ESPACIO;
+`destino_codigo` es null para un espacio. Los datos proceden de PostgreSQL.
+
+### POST /conexiones y POST /conexiones/:id/actualizar
+
+Entrada: `{componenteOrigenId, componenteDestinoId?, espacioDestinoId?}`.
+Debe existir exactamente un destino. Respuesta 201:
+`{conexionId, eventoId, estadoGrafoInicial:"PENDIENTE"}`.
+
+Se aplican las reglas SQL de tipos, componentes activos, una entrada por
+extremo, salidas y ausencia de ciclos. Una modificación sin cambios se rechaza.
+400: formato inválido; 404: referencia inexistente; 409: destino ocupado o
+conflicto de unicidad; 422: regla de conexión. Cada cambio y su evento son
+atómicos: un rechazo no deja conexiones ni eventos parciales.
+
+### POST /conexiones/:id/eliminar
+
+Sin cuerpo. Respuesta 200:
+`{conexionId, eventoId, estadoGrafoInicial:"PENDIENTE"}`. Elimina la conexión,
+no sus componentes, espacios, lecturas o reportes. La interfaz pide confirmación.
+Una conexión inexistente devuelve 404.
+
+### GET /red/eventos/:id
+
+Respuesta: `{eventoId, estado, secuencia, intentos, operacion}`. Secuencia como
+texto. Solo devuelve eventos GRAFO; un UUID de evento documental devuelve 404.
+No expone el payload completo. PROCESADO permite continuar; ERROR requiere
+revisar la causa y recuperar el evento, sin repetir el POST.
+
+### GET /red/estado
+
+Respuesta: `{versionRed, pendientes, errores}`. Versión de PostgreSQL como
+texto; cantidades como números. La vista comprueba este estado cada dos
+segundos. Con pendientes/errores oculta el diagrama previo; al quedar confirmado
+consulta de nuevo `/red` y el alcance seleccionado. El snapshot sigue
+comprobando su coincidencia con Neo4j.
+
+Los catálogos incluyen registros desconectados. El diagrama mantiene su contrato
+de red instalada: componentes activos conectados y espacios abastecidos.
+La guía [red-dinamica.md](../red-dinamica.md) explica la migración y el ensayo.

@@ -43,6 +43,10 @@ function PanelNodo({ nodo, alcance, buscando, error }: {
 }
 
 export function Red() {
+  const [controlRed, setControlRed] = useState<{ pendientes: number; errores: number } | null>(null)
+  const [errorControl, setErrorControl] = useState(false)
+  const actualizando = useRef(false)
+  const versionVisible = useRef<string | undefined>(undefined)
   const [vista, setVista] = useState<'diagrama' | 'lista'>(() => matchMedia('(max-width: 680px)').matches ? 'lista' : 'diagrama')
   const [nodoId, setNodoId] = useState<string | null>(null)
   const [intento, setIntento] = useState(0)
@@ -57,8 +61,29 @@ export function Red() {
   const alcance = seleccion?.clave === clave ? seleccion.datos : undefined
   const errorAlcance = seleccion?.clave === clave ? seleccion.error : undefined
 
+  useEffect(() => { versionVisible.current = red?.versionRed }, [red])
   useEffect(() => {
     const control = new AbortController()
+    let siguiente: number | undefined
+    async function comprobar() {
+      try {
+        const estado = await solicitar<{ versionRed: string; pendientes: number; errores: number }>('/red/estado', {
+          signal: AbortSignal.any([control.signal, AbortSignal.timeout(8_000)]),
+        })
+        if (control.signal.aborted) return
+        setControlRed(estado)
+        setErrorControl(false)
+        if (!estado.pendientes && !estado.errores && !actualizando.current && estado.versionRed !== versionVisible.current) setIntento((n) => n + 1)
+      } catch { if (!control.signal.aborted) setErrorControl(true) }
+      if (!control.signal.aborted) siguiente = window.setTimeout(() => { void comprobar() }, 2_000)
+    }
+    void comprobar()
+    return () => { control.abort(); window.clearTimeout(siguiente) }
+  }, [])
+
+  useEffect(() => {
+    const control = new AbortController()
+    actualizando.current = true
     solicitar<SnapshotRed>('/red', { signal: control.signal })
       .then((datos) => {
         if (control.signal.aborted) return
@@ -66,6 +91,7 @@ export function Red() {
         setNodoId((id) => datos.nodos.some((nodo) => nodo.id === id) ? id : null)
       })
       .catch((error: Error) => { if (!control.signal.aborted) setSnapshot({ intento, error }) })
+      .finally(() => { if (!control.signal.aborted) actualizando.current = false })
     return () => control.abort()
   }, [intento])
 
@@ -113,7 +139,7 @@ export function Red() {
     <>
       <div className="encabezado">
         <div><p className="campus">Campus UPChiapas</p><h1>Red de agua</h1></div>
-        <Link className="boton" to="/componentes">Catálogo de componentes</Link>
+        <div className="acciones"><Link className="boton" to="/conexiones">Administrar conexiones</Link><Link className="boton" to="/componentes">Catálogo de componentes</Link></div>
       </div>
       <div className="panel barra-red">
         <div className="fila">
@@ -128,8 +154,12 @@ export function Red() {
           </div>
         </div>
       </div>
+      <p className="ayuda-formulario">La red comprueba los cambios cada dos segundos. Los registros sin conexiones se consultan en los catálogos.</p>
+      {errorControl && <Aviso error>No fue posible comprobar el estado actual de la red. Se volverá a intentar automáticamente.</Aviso>}
+      {!!controlRed?.pendientes && <Aviso>Hay {controlRed.pendientes} cambios pendientes. El diagrama volverá a mostrarse al confirmar la sincronización.</Aviso>}
+      {!!controlRed?.errores && <Aviso error>Hay cambios de red con error. Solicita revisar el sincronizador antes de continuar.</Aviso>}
       <EstadoLista consulta={{ cargando, error, recargar: actualizar }} vacio={red?.nodos.length === 0 ? 'La red sincronizada no tiene conexiones.' : undefined}>
-        {red && <div className="explorador">
+        {red && !errorControl && !controlRed?.pendientes && !controlRed?.errores && <div className="explorador">
           <section className="panel panel-red">
             {vista === 'diagrama' ? <>
               <Suspense fallback={<Aviso>Cargando diagrama…</Aviso>}>

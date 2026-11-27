@@ -301,3 +301,15 @@ La validación integral con las tres bases y el sincronizador debe ejecutarse ap
 La [prueba reproducible del sistema](../pruebas/README.md) prepara las tres bases
 aisladas y ejecuta la API compilada y el sincronizador real. Requiere un entorno
 de pruebas vacío; no debe apuntar a las bases usadas para la demostración.
+
+## Registro y construcción de ramales
+
+Desde la versión 1.1.0 se incorporan POST `/espacios`, POST `/componentes`,
+GET/POST `/conexiones`, POST `/conexiones/:id/actualizar` y
+POST `/conexiones/:id/eliminar`. Todas las escrituras requieren la misma
+credencial de operador. `/red/eventos/:id` y `/red/estado` permiten seguir la
+confirmación del grafo. Consulta [el contrato](../docs/api/contrato.md#registro-y-administración-de-la-red-110).
+
+En instalaciones existentes es necesario aplicar las migraciones aditivas
+35 y 36; la [guía](../docs/red-dinamica.md) indica cómo conservar los datos.
+Los nuevos medidores y válvulas se registran con sus subtipos de forma atómica.

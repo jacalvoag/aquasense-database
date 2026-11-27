@@ -57,11 +57,10 @@ enviarlos. Si es incorrecta, corrígela antes de repetir la operación.
 
 ## La tubería registrada no aparece en el diagrama
 
-Una candidata nueva se guarda activa **sin conexiones**. Se incorpora a la red
-al usar **Reemplazar tubería** en un reporte abierto, seleccionando una tubería
-anterior activa y conectada. La operación conserva las conexiones y registra
-la reparación. No existe un editor libre de conexiones en esta entrega.
-En el catálogo se diferencia el estado ACTIVO de tener conexiones.
+Un componente nuevo se guarda activo **sin conexiones**. En **Conexiones**,
+crea su entrada y salida según los tipos permitidos. Una tubería también puede
+instalarse mediante **Reemplazar tubería** en un reporte. El catálogo distingue
+el estado ACTIVO de tener conexiones. Consulta [red-dinamica.md](red-dinamica.md).
 
 ## El expediente está pendiente o la red informa cambios pendientes
 
@@ -122,3 +121,6 @@ La prueba exige bases aisladas vacías. Sigue [pruebas/README.md](../pruebas/REA
 No cambies nombres o puertos para apuntarla a `aquasense` o a la reconstrucción
 que conserva tu trabajo. Solo elimina volúmenes del Compose de pruebas cuando
 quieras reiniciar ese entorno.
+
+Si una operación informa que faltan las migraciones 35/36, detén API y
+sincronizador y ejecuta el procedimiento de actualización de la guía.

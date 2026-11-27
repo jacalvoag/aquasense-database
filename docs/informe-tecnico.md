@@ -82,6 +82,8 @@ espera o un error de disponibilidad según la ruta.
 ## Funcionalidades demostradas
 
 - Catálogos de espacios, componentes, reportes y lecturas.
+- Altas de espacios y de los cinco tipos de componentes, con subtipos atómicos.
+- Creación, modificación y eliminación de conexiones con actualización del diagrama.
 - Registro manual de lecturas acumuladas y cálculo de consumo del intervalo.
 - Creación de reporte, inspección, reparación, verificación y cierre.
 - Preparación de una tubería candidata sin conexiones y reemplazo de una
@@ -151,7 +153,7 @@ recuperación verificada respalda el diseño de eventos para las interrupciones
 ensayadas. No constituye una garantía sobre cualquier fallo o volumen de datos.
 
 La entrega no incluye sensores, detección automática de fugas, cálculos
-hidráulicos, plano geográfico exacto, edición libre de todas las entidades,
+hidráulicos, plano geográfico exacto, edición de atributos de todos los registros existentes,
 cuentas múltiples ni despliegue público de producción. Tampoco permite
 cuantificar ahorro de agua. Las mediciones disponibles no son pruebas de carga
 concurrente ni de escalabilidad.
@@ -178,3 +180,12 @@ Documentación oficial para consultar las tecnologías empleadas:
 
 Estas fuentes explican las herramientas. Los resultados y cantidades del
 prototipo proceden de las evidencias del equipo, no de esas fuentes.
+
+## Ampliación 1.1.0: registro y construcción de ramales
+
+La [red dinámica](red-dinamica.md) permite crear nuevos espacios y componentes y
+administrar conexiones desde formularios. Las altas y conexiones generan eventos
+de grafo y la vista comprueba su confirmación antes de actualizar el esquema.
+Los registros nuevos pueden emplearse en los flujos de lectura y mantenimiento.
+Esta ampliación conserva los límites físicos del prototipo y añade sus propias
+pruebas de sistema y navegador; no amplía las mediciones históricas de rendimiento.

@@ -23,7 +23,7 @@ La configuración usa puertos diferentes de las instalaciones locales habituales
 PostgreSQL 55432, MongoDB 57017, Neo4j Bolt 57687 y API 3001. Las credenciales de
 ejemplo pertenecen únicamente a estos servicios de prueba ligados a loopback.
 No cambies el archivo `.env` de la ejecución normal. No inicies otro sincronizador
-con `.env.pruebas` durante la prueba.
+con `.env.pruebas` durante `test:sistema`.
 
 Antes de crear datos, la prueba exige `AQUASENSE_PRUEBAS=1`, los nombres y puertos
 aislados y que el esquema PostgreSQL, la base MongoDB y el grafo estén vacíos.
@@ -52,8 +52,8 @@ falla; el modo continuo de `npm run dev` conserva su comportamiento.
 
 ## Resultados y repetición
 
-Se generan `sistema.json`, `identificadores.json`, `estructura-reconstruida.json`
-y logs en `pruebas/resultados/`, carpeta excluida de Git. `sistema.json` solo indica
+Se generan `sistema.json`, `identificadores.json`, `estructura-reconstruida.json`,
+`red-dinamica.json` y logs en `pruebas/resultados/`, carpeta excluida de Git. `sistema.json` solo indica
 `finalizado: true` si todas las comprobaciones terminaron correctamente.
 
 Para examinar el estado final con la interfaz, configura una ejecución separada
@@ -64,7 +64,8 @@ VITE_API_BASE_URL=http://127.0.0.1:3001
 ```
 
 Inicia el frontend con `npm run dev`. Selecciona la tubería `TUB-PRUEBA-INTEGRAL`:
-debe mostrarse instalada en la red versión 1 y alcanzar los baños de UD1. El
+debe mostrarse instalada y alcanzar los baños de UD1. La versión final se
+consulta en `identificadores.json`. El
 reporte de prueba queda cerrado con tres atenciones. No necesita nuevos eventos
 para consultar ese estado.
 
@@ -88,6 +89,14 @@ cd api
 node --env-file=../sincronizador/.env.pruebas dist/main.js
 ```
 
+La prueba de escritura de la red necesita un sincronizador continuo **después**
+de terminar `test:sistema`. En otra terminal, desde la raíz:
+
+```powershell
+cd sincronizador
+node --env-file=.env.pruebas --import tsx src/index.ts
+```
+
 Desde otra terminal, en la raíz:
 
 ```powershell
@@ -108,17 +117,27 @@ las [herramientas de exportación de solo lectura](../herramientas/README.md).
 
 ## Comprobaciones de presentación
 
-El mismo comando `npm run test:visual` añade tres casos:
+El mismo comando `npm run test:visual` incluye además estos casos:
 
 - Compara los contadores de Inicio con las respuestas reales de la API y revisa
   la lectura reciente y el ancho móvil.
 - Sustituye **solo en un caso** la respuesta del catálogo de componentes por
   un 503 para comprobar que se informa la indisponibilidad y no se muestra cero.
-- Comprueba la explicación de la tubería candidata y la habilitación del
+- Comprueba la explicación del componente sin conexiones y la habilitación del
   formulario al introducir una credencial en memoria. No envía la operación
   ni afirma verificar esa credencial; la autorización del POST se prueba aparte.
+
+- Registra un espacio y una tubería desde la interfaz, conecta un ramal y
+  comprueba persistencia. Otro cliente cambia el destino mientras el diagrama
+  está abierto y la vista actualiza el alcance sin recargar. Finalmente elimina
+  una conexión desde el formulario. Este caso sí realiza escrituras reales.
 
 GitHub Actions ejecuta el sistema con los motores definidos en Compose, conserva
 `pruebas/resultados/` como artefacto durante 30 días y elimina únicamente sus
 volúmenes de prueba al finalizar. El job de Windows comprueba sintaxis y
 configuración del lanzador sin abrir terminales ni conectar motores.
+
+El flujo de sistema ampliado conserva el reporte original cerrado y crea otro
+ramal con su propio reporte. Por ello las cantidades y la versión final pueden
+superar las del ejemplo inicial. Las pruebas de navegador consultan la versión
+y cantidades reales, sin fijarlas a 25 nodos o versión 1.

@@ -5,7 +5,7 @@ El escenario académico representa la red de agua de un campus. Las lecturas se 
 ## Preparar los servicios
 
 1. Instala Node.js y npm. Para reproducir la ejecución validada usa Node 26.13.0 y npm 12.2.3. Necesitas PostgreSQL 16, MongoDB 8.0 y Neo4j Community 5.26 en instancias locales o contenedores con almacenamiento persistente. Usa el cliente de cada motor para ejecutar los scripts.
-2. Crea bases nuevas y sigue la [preparación de la carga base](preparacion-bases.md#postgresql-estructura-y-carga-base). En PostgreSQL ejecuta los scripts 01–28 y 32–34, en ese orden. En MongoDB ejecuta los scripts de colección e índice y usa `aquasense` en la configuración de la aplicación si conservaste el nombre de los scripts. Aplica las restricciones y la carga de Neo4j, compara los identificadores y vínculos con PostgreSQL y confirma la versión inicial con el script 08.
+2. Crea bases nuevas y sigue la [preparación de la carga base](preparacion-bases.md#postgresql-estructura-y-carga-base). En PostgreSQL ejecuta los scripts 01–28 y 32–36, en ese orden. En MongoDB ejecuta los scripts de colección e índice y usa `aquasense` en la configuración de la aplicación si conservaste el nombre de los scripts. Aplica las restricciones y la carga de Neo4j, compara los identificadores y vínculos con PostgreSQL y confirma la versión inicial con el script 08.
 3. Copia los archivos de ejemplo desde la raíz. Si ya tienes un archivo `.env` para un servicio, edita sus valores directamente.
 
    ```powershell
@@ -14,6 +14,9 @@ El escenario académico representa la red de agua de un campus. Las lecturas se 
    ```
 
 4. Configura las mismas bases y credenciales de conexión en ambos archivos. Para una instalación de Neo4j Community con la configuración estándar, usa `NEO4J_DATABASE=neo4j`. En la API define una clave propia para `API_OPERATOR_PASSWORD`, conserva los orígenes de Vite en `CORS_ORIGINS` y deja `PORT=3000` si está libre. Mantén las credenciales en tu equipo.
+
+Si actualizas una instalación existente, aplica solo las migraciones indicadas
+en [red-dinamica.md](red-dinamica.md); conserva sus datos y configuración.
 
 ## Arrancar la aplicación
 
@@ -58,7 +61,7 @@ Estos valores corresponden a una **carga base nueva**. Tu base utilizada puede t
 
 1. En **Red de agua**, comprueba versión 0, 25 nodos y 22 conexiones. Selecciona TUB-03 y consulta su alcance en el ramal de baños de UD1.
 2. Abre **Acceso de operador** con la credencial configurada. Crea un reporte para ese espacio, espera que se genere el expediente y registra una inspección.
-3. En **Componentes**, usa **Registrar tubería para reemplazo** con un código libre. Queda preparada sin conexiones hasta instalarla. Sustituye TUB-03 y espera los dos eventos, documental y de grafo. Confirma que TUB-03 aparezca retirada y que la tubería instalada conserve el alcance en la red versión 1.
+3. En **Componentes**, usa **Registrar componente** con tipo Tubería con un código libre. Queda sin conexiones hasta conectarla o usarla en un reemplazo. Sustituye TUB-03 y espera los dos eventos, documental y de grafo. Confirma que TUB-03 aparezca retirada y que la tubería instalada conserve el alcance en la red versión 1.
 4. Registra la verificación **Sin indicios**, espera la confirmación documental y cierra el reporte. Consulta las tres atenciones en el expediente.
 5. Captura una lectura acumulada de MED-01 posterior a su última lectura y dentro de la fecha actual. Por ejemplo, si el último acumulado es 118.000 m³, al capturar 120.500 m³ el consumo del intervalo debe ser 2.500 m³.
 

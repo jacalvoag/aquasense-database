@@ -1,6 +1,7 @@
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { EscrituraGuard } from './common/escritura.guard.js';
 import { PersistenciaFilter } from './common/persistencia.filter.js';
+import { RedOperativaModule } from './red-operativa/red-operativa.module.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller.js';
@@ -18,6 +19,7 @@ import { Neo4jModule } from './neo4j/neo4j.module.js';
     ConfigModule.forRoot({ isGlobal: true }),
     PostgresModule,
     EspaciosModule,
+    RedOperativaModule,
     ComponentesModule,
     LecturasModule,
     ReportesModule,
