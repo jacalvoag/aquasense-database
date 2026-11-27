@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from 'react-router'
+import { Activity, ArrowUpRight, Building2, CircleGauge, Droplets, FileText, Home, Network, UserRound, Wrench } from 'lucide-react'
 import { solicitar } from './api/cliente'
 import type { CredencialOperador } from './api/cliente'
 import type { FormEvent } from 'react'
@@ -8,11 +9,11 @@ import { NuevoReporte, ReporteDetalle, Reportes } from './paginas/Reportes'
 import { Red } from './paginas/Red'
 
 const secciones = [
-  { ruta: '/reportes', nombre: 'Reportes' },
-  { ruta: '/red', nombre: 'Red de agua' },
-  { ruta: '/componentes', nombre: 'Componentes' },
-  { ruta: '/lecturas', nombre: 'Lecturas' },
-  { ruta: '/espacios', nombre: 'Espacios' },
+  { ruta: '/reportes', nombre: 'Reportes', descripcion: 'Seguimiento de mantenimiento', icono: FileText },
+  { ruta: '/red', nombre: 'Red de agua', descripcion: 'Conexiones y recorridos', icono: Network },
+  { ruta: '/componentes', nombre: 'Componentes', descripcion: 'Tuberías, medidores y válvulas', icono: Wrench },
+  { ruta: '/lecturas', nombre: 'Lecturas', descripcion: 'Registro y consumo de agua', icono: CircleGauge },
+  { ruta: '/espacios', nombre: 'Espacios', descripcion: 'Lugares del campus', icono: Building2 },
 ]
 
 const servicios = [
@@ -37,17 +38,28 @@ function Inicio() {
 
   return (
     <>
-      <header className="cabecera">
-        <p className="campus">Campus UPChiapas</p>
-        <h1>Operación de la red de agua</h1>
+      <header className="cabecera inicio-cabecera">
+        <p className="campus">Campus UPChiapas <span> / </span> Inicio</p>
+        <h1>Red de agua</h1>
+        <p>Consulta la red y da seguimiento al mantenimiento del campus.</p>
       </header>
-      <section className="panel" aria-labelledby="estado-titulo">
+      <div className="inicio-columnas">
+      <section className="inicio-accesos" aria-labelledby="accesos-titulo">
+        <div className="seccion-titulo"><div><span className="eyebrow">AQUASENSE</span><h2 id="accesos-titulo">Explorar</h2></div></div>
+        <div className="tarjetas">
+          {secciones.map(({ ruta, nombre, descripcion, icono: Icono }) => (
+            <NavLink className="tarjeta-acceso" key={ruta} to={ruta}>
+              <span className="tarjeta-icono"><Icono size={23} strokeWidth={1.8} /></span>
+              <span className="tarjeta-flecha"><ArrowUpRight size={17} /></span>
+              <span className="tarjeta-contenido"><strong>{nombre}</strong><small>{descripcion}</small></span>
+            </NavLink>
+          ))}
+        </div>
+      </section>
+      <section className="panel estado-panel" aria-labelledby="estado-titulo">
         <div className="fila">
-          <h2 id="estado-titulo">Conexión con la API</h2>
-          <button type="button" disabled={estados === null} onClick={() => {
-            setEstados(null)
-            setIntento((actual) => actual + 1)
-          }}>Comprobar de nuevo</button>
+          <div><span className="eyebrow">ESTADO DEL SISTEMA</span><h2 id="estado-titulo">Conexiones</h2></div>
+          <Activity size={19} aria-hidden="true" />
         </div>
         <ul className="servicios" aria-live="polite">
           {servicios.map(({ nombre }, i) => (
@@ -59,7 +71,12 @@ function Inicio() {
             </li>
           ))}
         </ul>
+        <button className="comprobar" type="button" disabled={estados === null} onClick={() => {
+          setEstados(null)
+          setIntento((actual) => actual + 1)
+        }}>Comprobar de nuevo</button>
       </section>
+      </div>
     </>
   )
 }
@@ -89,8 +106,8 @@ function AccesoOperador({ credencial, cambiar }: {
         </>
       ) : (
         <>
-          <button type="button" aria-expanded={abierto} aria-controls="credencial"
-            onClick={() => setAbierto((actual) => !actual)}>Acceso de operador</button>
+          <button className="acceso-boton" type="button" aria-expanded={abierto} aria-controls="credencial"
+            onClick={() => setAbierto((actual) => !actual)}><UserRound size={18} />Acceso de operador</button>
           {abierto && (
             <form id="credencial" className="credencial panel" onSubmit={guardar}>
               <label>Usuario<input name="usuario" required pattern="[^:]+" autoComplete="username" /></label>
@@ -110,12 +127,17 @@ export default function App() {
   return (
     <BrowserRouter>
       <a className="salto" href="#contenido">Saltar al contenido</a>
+      <div className="aplicacion">
       <header className="barra">
-        <NavLink className="marca" to="/" end>AquaSense</NavLink>
+        <NavLink className="marca" to="/" end><span className="marca-icono"><Droplets size={21} /></span><span>AquaSense<small>Red de agua</small></span></NavLink>
+        <p className="nav-etiqueta">NAVEGACIÓN</p>
         <nav aria-label="Navegación principal">
-          {secciones.map(({ ruta, nombre }) => <NavLink key={ruta} to={ruta}>{nombre}</NavLink>)}
+          <NavLink to="/" end><Home size={19} />Inicio</NavLink>
+          {secciones.map(({ ruta, nombre, icono: Icono }) => <NavLink key={ruta} to={ruta}><Icono size={19} />{nombre}</NavLink>)}
         </nav>
+        <div className="barra-pie"><span className="barra-campus">UPChiapas <small>Campus universitario</small></span>
         <AccesoOperador credencial={credencial} cambiar={cambiarCredencial} />
+        </div>
       </header>
       <main id="contenido">
         <Routes>
@@ -130,6 +152,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      </div>
     </BrowserRouter>
   )
 }
