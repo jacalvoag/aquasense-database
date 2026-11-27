@@ -1,0 +1,16 @@
+Sistema: carga base: identificadores y 22 conexiones coinciden entre PostgreSQL y Neo4j
+Sistema: API: salud de los tres motores y snapshot inicial
+Sistema: reporte: autorización, validación, sincronización y rechazo del cierre prematuro
+Sistema: MongoDB: recuperación después de aplicar una atención, sin duplicarla
+Sistema: Neo4j: reemplazo y recuperación sin duplicar tubería, conexiones ni historial
+Sistema: verificación, cierre y rechazo de atención sobre reporte cerrado
+Sistema: lectura acumulada, consumo de 2.500 m³ y ciclo sin eventos pendientes
+✔ flujo real entre API, sincronizador, PostgreSQL, MongoDB y Neo4j (12629.332111ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13175.733948

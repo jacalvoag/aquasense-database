@@ -67,6 +67,8 @@ PostgreSQL. Las actualizaciones entre bases no son inmediatas.
 | GET | `/salud/neo4j` | Comprueba la conexión con Neo4j. |
 | GET | `/espacios` | Lista los espacios del campus. |
 | GET | `/componentes` | Lista los componentes de la red. |
+| GET | `/red` | Devuelve los nodos, conexiones y versión de la red instalada. |
+| GET | `/red/componentes/:componenteId/alcance` | Devuelve los nodos, conexiones y espacios aguas abajo de un componente. |
 | GET | `/componentes/:componenteId/espacios-afectados` | Consulta los espacios alcanzables desde un componente. |
 | POST | `/componentes/tuberias` | Registra una tubería nueva sin conexiones. |
 | GET | `/lecturas` | Lista las lecturas y el consumo entre ellas. |
@@ -295,3 +297,7 @@ npm run lint
 `test:e2e` comprueba las rutas HTTP, inyección de módulos, autorización y CORS con
 los drivers sustituidos. No requiere credenciales reales y no escribe en las bases.
 La validación integral con las tres bases y el sincronizador debe ejecutarse aparte.
+
+La [prueba reproducible del sistema](../pruebas/README.md) prepara las tres bases
+aisladas y ejecuta la API compilada y el sincronizador real. Requiere un entorno
+de pruebas vacío; no debe apuntar a las bases usadas para la demostración.

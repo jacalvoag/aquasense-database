@@ -1227,7 +1227,7 @@ async function iniciarSincronizador(): Promise<void> {
   }
 }
 
-iniciarSincronizador().catch((error: unknown) => {
+(process.argv.includes("--una-vez") ? main() : iniciarSincronizador()).catch((error: unknown) => {
   console.error(
     "El sincronizador se detuvo:",
     error instanceof Error ? error.message : "Error desconocido",

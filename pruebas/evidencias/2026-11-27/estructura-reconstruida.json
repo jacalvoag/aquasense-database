@@ -1,0 +1,1902 @@
+{
+  "esquema": "aquasense",
+  "formato": 1,
+  "objetos": [
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.actualizar_conexion_red(p_conexion_id uuid, p_componente_origen_id uuid, p_componente_destino_id uuid, p_espacio_destino_id uuid, p_evento_id uuid)\n RETURNS uuid\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_antes aquasense.conexion%ROWTYPE;\n    v_despues aquasense.conexion%ROWTYPE;\nBEGIN\n    IF p_conexion_id IS NULL\n       OR p_componente_origen_id IS NULL\n       OR p_evento_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requieren los identificadores de conexión, origen y evento.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    IF current_setting('transaction_isolation') <> 'read committed' THEN\n        RAISE EXCEPTION\n            'La actualización de conexiones requiere READ COMMITTED.'\n            USING ERRCODE = '25001';\n    END IF;\n\n    -- Coordinar el cambio con las demás operaciones de la red.\n    PERFORM control_id\n    FROM aquasense.control_red\n    WHERE control_id = 1\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'No existe el registro de control de la red.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    SELECT *\n    INTO v_antes\n    FROM aquasense.conexion\n    WHERE conexion_id = p_conexion_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'La conexión indicada no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_antes.componente_origen_id IS NOT DISTINCT FROM p_componente_origen_id\n       AND v_antes.componente_destino_id IS NOT DISTINCT FROM p_componente_destino_id\n       AND v_antes.espacio_destino_id IS NOT DISTINCT FROM p_espacio_destino_id THEN\n        RAISE EXCEPTION\n            'La conexión no presenta cambios.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- El trigger existente valida tipos, estado, salidas y ciclos.\n    UPDATE aquasense.conexion\n    SET componente_origen_id = p_componente_origen_id,\n        componente_destino_id = p_componente_destino_id,\n        espacio_destino_id = p_espacio_destino_id\n    WHERE conexion_id = p_conexion_id\n    RETURNING * INTO v_despues;\n\n    PERFORM aquasense.encolar_evento_red(\n        p_evento_id,\n        jsonb_build_object(\n            'operacion', 'ACTUALIZAR_CONEXION',\n            'antes', to_jsonb(v_antes),\n            'despues', to_jsonb(v_despues)\n        )\n    );\n\n    RETURN p_conexion_id;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "actualizar_conexion_red(p_conexion_id uuid, p_componente_origen"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.cerrar_reporte(p_reporte_id uuid)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_estado_reporte TEXT;\n    v_secuencia_actual BIGINT;\n    v_evento RECORD;\nBEGIN\n    IF p_reporte_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requiere el identificador del reporte.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    -- El bloqueo evita que se registre otra atención al mismo tiempo.\n    SELECT estado, secuencia_documental\n    INTO v_estado_reporte, v_secuencia_actual\n    FROM aquasense.reporte\n    WHERE reporte_id = p_reporte_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El reporte indicado no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_estado_reporte <> 'EN_ATENCION' THEN\n        RAISE EXCEPTION\n            'Solo se puede cerrar un reporte en atención. Estado actual: %.',\n            v_estado_reporte\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Se revisa la operación documental más reciente del reporte.\n    SELECT tipo, estado, datos\n    INTO v_evento\n    FROM aquasense.evento_salida\n    WHERE destino = 'DOCUMENTAL'\n      AND reporte_id = p_reporte_id\n      AND secuencia = v_secuencia_actual;\n\n    IF NOT FOUND OR v_evento.estado <> 'PROCESADO' THEN\n        RAISE EXCEPTION\n            'La última operación documental no está confirmada.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF v_evento.tipo <> 'AGREGAR_ATENCION'\n       OR (v_evento.datos -> 'atencion' ->> 'tipo')\n            IS DISTINCT FROM 'VERIFICACION'\n       OR (v_evento.datos -> 'atencion' ->> 'resultado')\n            IS DISTINCT FROM 'SIN_INDICIOS' THEN\n        RAISE EXCEPTION\n            'La última atención confirmada debe ser una verificación sin indicios.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    UPDATE aquasense.reporte\n    SET estado = 'CERRADO',\n        cerrado_en = CURRENT_TIMESTAMP,\n        actualizado_en = CURRENT_TIMESTAMP\n    WHERE reporte_id = p_reporte_id;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "cerrar_reporte(p_reporte_id uuid)"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.comprobar_subtipo_componente(p_componente_id uuid)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_tipo aquasense.componente.tipo%TYPE;\nBEGIN\n    SELECT tipo\n    INTO v_tipo\n    FROM aquasense.componente\n    WHERE componente_id = p_componente_id;\n\n    -- Si el componente ya no existe, no hay subtipo que comprobar.\n    IF NOT FOUND THEN\n        RETURN;\n    END IF;\n\n    IF v_tipo = 'VALVULA'\n       AND NOT EXISTS (\n           SELECT 1\n           FROM aquasense.valvula\n           WHERE componente_id = p_componente_id\n       )\n    THEN\n        RAISE EXCEPTION\n            'El componente % es una válvula y necesita su registro en aquasense.valvula.',\n            p_componente_id\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF v_tipo = 'MEDIDOR'\n       AND NOT EXISTS (\n           SELECT 1\n           FROM aquasense.medidor\n           WHERE componente_id = p_componente_id\n       )\n    THEN\n        RAISE EXCEPTION\n            'El componente % es un medidor y necesita su registro en aquasense.medidor.',\n            p_componente_id\n            USING ERRCODE = '23514';\n    END IF;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "comprobar_subtipo_componente(p_componente_id uuid)"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.confirmar_evento_documental(p_evento_id uuid)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_reporte_id UUID;\n    v_estado_reporte TEXT;\n    v_secuencia_reporte BIGINT;\n\n    v_tipo_evento TEXT;\n    v_estado_evento TEXT;\n    v_secuencia_evento BIGINT;\nBEGIN\n    IF p_evento_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requiere el identificador del evento.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    -- Primero identificamos el reporte al que pertenece el evento.\n    SELECT reporte_id\n    INTO v_reporte_id\n    FROM aquasense.evento_salida\n    WHERE evento_id = p_evento_id\n      AND destino = 'DOCUMENTAL';\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El evento documental indicado no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    -- Se bloquea primero el reporte, como en registrar_atencion.\n    SELECT estado, secuencia_documental\n    INTO v_estado_reporte, v_secuencia_reporte\n    FROM aquasense.reporte\n    WHERE reporte_id = v_reporte_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El reporte asociado al evento no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    SELECT tipo, estado, secuencia\n    INTO v_tipo_evento, v_estado_evento, v_secuencia_evento\n    FROM aquasense.evento_salida\n    WHERE evento_id = p_evento_id\n      AND destino = 'DOCUMENTAL'\n      AND reporte_id = v_reporte_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El evento documental indicado ya no está disponible.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    -- Permite repetir la confirmación sin aplicar cambios otra vez.\n    IF v_estado_evento = 'PROCESADO' THEN\n        RETURN;\n    END IF;\n\n    IF v_estado_evento <> 'PENDIENTE' THEN\n        RAISE EXCEPTION\n            'Solo se pueden confirmar eventos pendientes. Estado actual: %.',\n            v_estado_evento\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF v_estado_reporte = 'CERRADO' THEN\n        RAISE EXCEPTION\n            'No se puede confirmar un evento pendiente de un reporte cerrado.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF v_secuencia_evento <> v_secuencia_reporte THEN\n        RAISE EXCEPTION\n            'La secuencia del evento no coincide con la secuencia actual del reporte.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF v_tipo_evento = 'CREAR_EXPEDIENTE' THEN\n        IF v_secuencia_evento <> 1 THEN\n            RAISE EXCEPTION\n                'La creación del expediente debe tener la secuencia 1.'\n                USING ERRCODE = '23514';\n        END IF;\n\n    ELSIF v_tipo_evento = 'AGREGAR_ATENCION' THEN\n        IF v_secuencia_evento <= 1 OR NOT EXISTS (\n            SELECT 1\n            FROM aquasense.evento_salida\n            WHERE destino = 'DOCUMENTAL'\n              AND reporte_id = v_reporte_id\n              AND secuencia = v_secuencia_evento - 1\n              AND estado = 'PROCESADO'\n        ) THEN\n            RAISE EXCEPTION\n                'La operación documental anterior no está confirmada.'\n                USING ERRCODE = '23514';\n        END IF;\n\n    ELSE\n        RAISE EXCEPTION\n            'Tipo de evento documental no admitido: %.',\n            v_tipo_evento\n            USING ERRCODE = '23514';\n    END IF;\n\n    UPDATE aquasense.evento_salida\n    SET estado = 'PROCESADO',\n        procesado_en = CURRENT_TIMESTAMP,\n        proximo_intento_en = NULL,\n        ultimo_error = NULL\n    WHERE evento_id = p_evento_id;\n\n    IF v_tipo_evento = 'AGREGAR_ATENCION'\n       AND v_estado_reporte = 'PENDIENTE' THEN\n\n        UPDATE aquasense.reporte\n        SET estado = 'EN_ATENCION',\n            actualizado_en = CURRENT_TIMESTAMP\n        WHERE reporte_id = v_reporte_id;\n    END IF;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "confirmar_evento_documental(p_evento_id uuid)"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.confirmar_evento_grafo(p_evento_id uuid)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_estado TEXT;\n    v_secuencia BIGINT;\n    v_version_red BIGINT;\nBEGIN\n    IF p_evento_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requiere el identificador del evento.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    -- Coordinar la comprobación con los cambios de versión de la red.\n    SELECT version_red\n    INTO v_version_red\n    FROM aquasense.control_red\n    WHERE control_id = 1\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'No existe el registro de control de la red.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    SELECT estado, secuencia\n    INTO v_estado, v_secuencia\n    FROM aquasense.evento_salida\n    WHERE evento_id = p_evento_id\n      AND destino = 'GRAFO'\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El evento de grafo indicado no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    -- Una confirmación repetida no vuelve a modificar el evento.\n    IF v_estado = 'PROCESADO' THEN\n        RETURN;\n    END IF;\n\n    IF v_estado <> 'PENDIENTE' THEN\n        RAISE EXCEPTION\n            'Solo se pueden confirmar eventos pendientes. Estado actual: %.',\n            v_estado\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF v_secuencia > v_version_red THEN\n        RAISE EXCEPTION\n            'La secuencia del evento supera la versión actual de la red.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF v_secuencia > 1 AND NOT EXISTS (\n        SELECT 1\n        FROM aquasense.evento_salida\n        WHERE destino = 'GRAFO'\n          AND secuencia = v_secuencia - 1\n          AND estado = 'PROCESADO'\n    ) THEN\n        RAISE EXCEPTION\n            'El evento anterior del grafo no está confirmado.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    UPDATE aquasense.evento_salida\n    SET estado = 'PROCESADO',\n        procesado_en = CURRENT_TIMESTAMP,\n        proximo_intento_en = NULL,\n        ultimo_error = NULL\n    WHERE evento_id = p_evento_id;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "confirmar_evento_grafo(p_evento_id uuid)"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.corregir_lectura(p_correccion_id uuid, p_lectura_id uuid, p_valor_nuevo numeric, p_motivo text)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_medidor_id UUID;\n    v_medidor_actual UUID;\n    v_fecha_hora TIMESTAMPTZ;\n    v_valor_anterior NUMERIC(14,3);\n\n    v_valor_previo NUMERIC(14,3);\n    v_valor_siguiente NUMERIC(14,3);\nBEGIN\n    -- La operación se plantea para READ COMMITTED, igual\n    -- que el registro de lecturas.\n    IF current_setting('transaction_isolation') <> 'read committed' THEN\n        RAISE EXCEPTION\n            'La corrección de lectura requiere aislamiento READ COMMITTED.'\n            USING ERRCODE = '25001';\n    END IF;\n\n\n    -- Validar datos obligatorios.\n    IF p_correccion_id IS NULL\n       OR p_lectura_id IS NULL\n       OR p_valor_nuevo IS NULL\n       OR p_motivo IS NULL\n       OR btrim(p_motivo) = ''\n    THEN\n        RAISE EXCEPTION\n            'La corrección requiere identificadores, valor nuevo y motivo.'\n            USING ERRCODE = '23502';\n    END IF;\n\n\n    -- Validar el valor antes de convertirlo a NUMERIC(14,3).\n    IF p_valor_nuevo IN (\n        'NaN'::NUMERIC,\n        'Infinity'::NUMERIC,\n        '-Infinity'::NUMERIC\n    ) THEN\n        RAISE EXCEPTION\n            'El valor nuevo debe ser un número finito.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF p_valor_nuevo < 0 THEN\n        RAISE EXCEPTION\n            'El valor nuevo no puede ser negativo.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF p_valor_nuevo > 99999999999.999 THEN\n        RAISE EXCEPTION\n            'El valor nuevo supera el máximo permitido.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF scale(p_valor_nuevo) > 3 THEN\n        RAISE EXCEPTION\n            'El valor nuevo puede tener como máximo tres decimales.'\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Identificar el medidor al que pertenece la lectura.\n    SELECT medidor_id\n    INTO v_medidor_id\n    FROM aquasense.lectura\n    WHERE lectura_id = p_lectura_id;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'La lectura indicada no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n\n    -- Usar el mismo bloqueo por medidor que registrar_lectura.\n    PERFORM 1\n    FROM aquasense.componente\n    WHERE componente_id = v_medidor_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'No existe el componente asociado al medidor.'\n            USING ERRCODE = '23503';\n    END IF;\n\n\n    -- Volver a leer la lectura después de obtener el bloqueo.\n    SELECT medidor_id, fecha_hora, valor_acumulado\n    INTO v_medidor_actual, v_fecha_hora, v_valor_anterior\n    FROM aquasense.lectura\n    WHERE lectura_id = p_lectura_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'La lectura ya no está disponible.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_medidor_actual <> v_medidor_id THEN\n        RAISE EXCEPTION\n            'El medidor de la lectura cambió durante la operación.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF p_valor_nuevo = v_valor_anterior THEN\n        RAISE EXCEPTION\n            'El valor nuevo debe ser diferente al valor actual.'\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Consultar la lectura anterior, si existe.\n    SELECT valor_acumulado\n    INTO v_valor_previo\n    FROM aquasense.lectura\n    WHERE medidor_id = v_medidor_id\n      AND fecha_hora < v_fecha_hora\n    ORDER BY fecha_hora DESC\n    LIMIT 1;\n\n    IF FOUND AND p_valor_nuevo < v_valor_previo THEN\n        RAISE EXCEPTION\n            'El valor nuevo no puede ser menor que la lectura anterior: % m3.',\n            v_valor_previo\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Consultar la lectura siguiente, si existe.\n    SELECT valor_acumulado\n    INTO v_valor_siguiente\n    FROM aquasense.lectura\n    WHERE medidor_id = v_medidor_id\n      AND fecha_hora > v_fecha_hora\n    ORDER BY fecha_hora ASC\n    LIMIT 1;\n\n    IF FOUND AND p_valor_nuevo > v_valor_siguiente THEN\n        RAISE EXCEPTION\n            'El valor nuevo no puede ser mayor que la lectura siguiente: % m3.',\n            v_valor_siguiente\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Cambiar el valor vigente.\n    UPDATE aquasense.lectura\n    SET valor_acumulado = p_valor_nuevo\n    WHERE lectura_id = p_lectura_id;\n\n\n    -- Conservar la corrección en el historial.\n    INSERT INTO aquasense.correccion_lectura (\n        correccion_id,\n        lectura_id,\n        valor_anterior,\n        valor_nuevo,\n        motivo\n    )\n    VALUES (\n        p_correccion_id,\n        p_lectura_id,\n        v_valor_anterior,\n        p_valor_nuevo,\n        btrim(p_motivo)\n    );\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "corregir_lectura(p_correccion_id uuid, p_lectura_id uuid, p_val"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.crear_conexion_red(p_conexion_id uuid, p_componente_origen_id uuid, p_componente_destino_id uuid, p_espacio_destino_id uuid, p_evento_id uuid)\n RETURNS uuid\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_conexion aquasense.conexion%ROWTYPE;\nBEGIN\n    IF p_conexion_id IS NULL\n       OR p_componente_origen_id IS NULL\n       OR p_evento_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requieren los identificadores de conexión, origen y evento.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    IF current_setting('transaction_isolation') <> 'read committed' THEN\n        RAISE EXCEPTION\n            'La creación de conexiones requiere READ COMMITTED.'\n            USING ERRCODE = '25001';\n    END IF;\n\n    -- Coordinar el cambio con las demás operaciones de la red.\n    PERFORM control_id\n    FROM aquasense.control_red\n    WHERE control_id = 1\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'No existe el registro de control de la red.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Las restricciones y el trigger existentes validan la conexión.\n    INSERT INTO aquasense.conexion (\n        conexion_id,\n        componente_origen_id,\n        componente_destino_id,\n        espacio_destino_id\n    )\n    VALUES (\n        p_conexion_id,\n        p_componente_origen_id,\n        p_componente_destino_id,\n        p_espacio_destino_id\n    )\n    RETURNING * INTO v_conexion;\n\n    PERFORM aquasense.encolar_evento_red(\n        p_evento_id,\n        jsonb_build_object(\n            'operacion', 'CREAR_CONEXION',\n            'conexion', to_jsonb(v_conexion)\n        )\n    );\n\n    RETURN p_conexion_id;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "crear_conexion_red(p_conexion_id uuid, p_componente_origen_id u"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.crear_reporte(p_reporte_id uuid, p_evento_id uuid, p_espacio_id uuid, p_descripcion_inicial text, p_referencia_ubicacion text DEFAULT NULL::text)\n RETURNS uuid\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_datos_evento JSONB;\nBEGIN\n    -- Validar identificadores y descripción.\n    IF p_reporte_id IS NULL\n       OR p_evento_id IS NULL\n       OR p_espacio_id IS NULL\n       OR p_descripcion_inicial IS NULL\n       OR btrim(p_descripcion_inicial) = ''\n    THEN\n        RAISE EXCEPTION\n            'El reporte requiere identificadores, espacio y descripción inicial.'\n            USING ERRCODE = '23502';\n    END IF;\n\n\n    -- Preparar los datos necesarios para crear el expediente.\n    -- Si no hay referencia adicional, se omite ese campo.\n    v_datos_evento := jsonb_strip_nulls(\n        jsonb_build_object(\n            'reporteId', p_reporte_id::TEXT,\n            'descripcionInicial', btrim(p_descripcion_inicial),\n            'referenciaUbicacion',\n                NULLIF(btrim(p_referencia_ubicacion), '')\n        )\n    );\n\n\n    -- Registrar el reporte.\n    -- La primera secuencia corresponde a crear su expediente.\n    INSERT INTO aquasense.reporte (\n        reporte_id,\n        espacio_id,\n        estado,\n        secuencia_documental\n    )\n    VALUES (\n        p_reporte_id,\n        p_espacio_id,\n        'PENDIENTE',\n        1\n    );\n\n\n    -- Registrar el evento que posteriormente procesará\n    -- el sincronizador para crear el expediente en MongoDB.\n    INSERT INTO aquasense.evento_salida (\n        evento_id,\n        destino,\n        tipo,\n        reporte_id,\n        secuencia,\n        datos\n    )\n    VALUES (\n        p_evento_id,\n        'DOCUMENTAL',\n        'CREAR_EXPEDIENTE',\n        p_reporte_id,\n        1,\n        v_datos_evento\n    );\n\n    RETURN p_reporte_id;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "crear_reporte(p_reporte_id uuid, p_evento_id uuid, p_espacio_id"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.eliminar_conexion_red(p_conexion_id uuid, p_evento_id uuid)\n RETURNS uuid\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_conexion aquasense.conexion%ROWTYPE;\nBEGIN\n    IF p_conexion_id IS NULL OR p_evento_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requieren los identificadores de conexión y evento.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    IF current_setting('transaction_isolation') <> 'read committed' THEN\n        RAISE EXCEPTION\n            'La eliminación de conexiones requiere READ COMMITTED.'\n            USING ERRCODE = '25001';\n    END IF;\n\n    -- Coordinar este cambio con las demás operaciones de la red.\n    PERFORM control_id\n    FROM aquasense.control_red\n    WHERE control_id = 1\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'No existe el registro de control de la red.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Conservar los datos de la conexión para el evento.\n    DELETE FROM aquasense.conexion\n    WHERE conexion_id = p_conexion_id\n    RETURNING * INTO v_conexion;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'La conexión indicada no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    PERFORM aquasense.encolar_evento_red(\n        p_evento_id,\n        jsonb_build_object(\n            'operacion', 'ELIMINAR_CONEXION',\n            'conexion', to_jsonb(v_conexion)\n        )\n    );\n\n    RETURN p_conexion_id;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "eliminar_conexion_red(p_conexion_id uuid, p_evento_id uuid)"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.encolar_evento_red(p_evento_id uuid, p_cambio jsonb)\n RETURNS bigint\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_version_red BIGINT;\nBEGIN\n    IF p_evento_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requiere el identificador del evento.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    IF p_cambio IS NULL\n       OR jsonb_typeof(p_cambio) IS DISTINCT FROM 'object'\n       OR p_cambio = '{}'::JSONB THEN\n        RAISE EXCEPTION\n            'El cambio de red debe ser un objeto JSON no vacío.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- La actualización también bloquea la fila de control\n    -- hasta que termine la transacción.\n    UPDATE aquasense.control_red\n    SET version_red = version_red + 1,\n        actualizado_en = CURRENT_TIMESTAMP\n    WHERE control_id = 1\n    RETURNING version_red INTO v_version_red;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'No existe el registro de control de la red.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    INSERT INTO aquasense.evento_salida (\n        evento_id,\n        destino,\n        tipo,\n        reporte_id,\n        secuencia,\n        datos\n    )\n    VALUES (\n        p_evento_id,\n        'GRAFO',\n        'ACTUALIZAR_RED',\n        NULL,\n        v_version_red,\n        jsonb_build_object(\n            'versionRed', v_version_red,\n            'cambio', p_cambio\n        )\n    );\n\n    RETURN v_version_red;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "encolar_evento_red(p_evento_id uuid, p_cambio jsonb)"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.impedir_cambio_tipo_componente()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    IF NEW.tipo IS DISTINCT FROM OLD.tipo THEN\n        RAISE EXCEPTION\n            'No se puede cambiar el tipo del componente %. '\n            'Tipo actual: %. Tipo solicitado: %.',\n            OLD.codigo,\n            OLD.tipo,\n            NEW.tipo\n            USING ERRCODE = '23514';\n    END IF;\n\n    RETURN NEW;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "impedir_cambio_tipo_componente()"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.reactivar_evento_documental(p_evento_id uuid)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_reporte_id UUID;\n    v_estado_evento TEXT;\nBEGIN\n    IF p_evento_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requiere el identificador del evento.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    SELECT reporte_id\n    INTO v_reporte_id\n    FROM aquasense.evento_salida\n    WHERE evento_id = p_evento_id\n      AND destino = 'DOCUMENTAL';\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El evento documental indicado no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    -- Mantener el mismo orden de bloqueo de las demás funciones.\n    PERFORM 1\n    FROM aquasense.reporte\n    WHERE reporte_id = v_reporte_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El reporte asociado al evento no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    SELECT estado\n    INTO v_estado_evento\n    FROM aquasense.evento_salida\n    WHERE evento_id = p_evento_id\n      AND destino = 'DOCUMENTAL'\n      AND reporte_id = v_reporte_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El evento documental indicado ya no está disponible.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_estado_evento <> 'ERROR' THEN\n        RAISE EXCEPTION\n            'Solo se pueden reactivar eventos en ERROR. Estado actual: %.',\n            v_estado_evento\n            USING ERRCODE = '23514';\n    END IF;\n\n    UPDATE aquasense.evento_salida\n    SET estado = 'PENDIENTE',\n        intentos = 0,\n        proximo_intento_en = CURRENT_TIMESTAMP\n    WHERE evento_id = p_evento_id;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "reactivar_evento_documental(p_evento_id uuid)"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.reactivar_evento_grafo(p_evento_id uuid)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_estado TEXT;\nBEGIN\n    IF p_evento_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requiere el identificador del evento.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    -- Mantener el mismo orden de bloqueo de los eventos del grafo.\n    PERFORM control_id\n    FROM aquasense.control_red\n    WHERE control_id = 1\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'No existe el registro de control de la red.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    SELECT estado\n    INTO v_estado\n    FROM aquasense.evento_salida\n    WHERE evento_id = p_evento_id\n      AND destino = 'GRAFO'\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El evento de grafo indicado no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_estado <> 'ERROR' THEN\n        RAISE EXCEPTION\n            'Solo se pueden reactivar eventos en ERROR. Estado actual: %.',\n            v_estado\n            USING ERRCODE = '23514';\n    END IF;\n\n    UPDATE aquasense.evento_salida\n    SET estado = 'PENDIENTE',\n        intentos = 0,\n        proximo_intento_en = CURRENT_TIMESTAMP\n    WHERE evento_id = p_evento_id;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "reactivar_evento_grafo(p_evento_id uuid)"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.reemplazar_tuberia(p_reemplazo_id uuid, p_tuberia_anterior_id uuid, p_tuberia_nueva_id uuid, p_reporte_id uuid, p_evento_documental_id uuid, p_evento_grafo_id uuid, p_atencion jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_anterior aquasense.componente%ROWTYPE;\n    v_nueva aquasense.componente%ROWTYPE;\n\n    v_entrada_antes aquasense.conexion%ROWTYPE;\n    v_entrada_despues aquasense.conexion%ROWTYPE;\n\n    v_salida_antes aquasense.conexion%ROWTYPE;\n    v_salida_despues aquasense.conexion%ROWTYPE;\n\n    v_tiene_entrada BOOLEAN;\n    v_tiene_salida BOOLEAN;\n    v_estado_reporte TEXT;\n\n    v_conexiones JSONB := '[]'::JSONB;\n    v_atencion JSONB;\nBEGIN\n    IF p_reemplazo_id IS NULL\n       OR p_tuberia_anterior_id IS NULL\n       OR p_tuberia_nueva_id IS NULL\n       OR p_reporte_id IS NULL\n       OR p_evento_documental_id IS NULL\n       OR p_evento_grafo_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requieren todos los identificadores del reemplazo.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    IF p_tuberia_anterior_id = p_tuberia_nueva_id THEN\n        RAISE EXCEPTION\n            'La tubería anterior y la nueva deben ser diferentes.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF current_setting('transaction_isolation') <> 'read committed' THEN\n        RAISE EXCEPTION\n            'El reemplazo requiere el aislamiento READ COMMITTED.'\n            USING ERRCODE = '25001';\n    END IF;\n\n    IF p_atencion IS NULL\n       OR jsonb_typeof(p_atencion) IS DISTINCT FROM 'object'\n       OR (p_atencion ->> 'tipo') IS DISTINCT FROM 'REPARACION' THEN\n        RAISE EXCEPTION\n            'El reemplazo requiere una atención de tipo REPARACION.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Coordinar los cambios de topología.\n    PERFORM control_id\n    FROM aquasense.control_red\n    WHERE control_id = 1\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'No existe el registro de control de la red.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Bloquear el reporte antes de registrar la atención.\n    SELECT estado\n    INTO v_estado_reporte\n    FROM aquasense.reporte\n    WHERE reporte_id = p_reporte_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El reporte indicado no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_estado_reporte = 'CERRADO' THEN\n        RAISE EXCEPTION\n            'No se puede asociar un reemplazo a un reporte cerrado.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Bloquear ambos componentes en un orden estable.\n    PERFORM componente_id\n    FROM aquasense.componente\n    WHERE componente_id IN (\n        p_tuberia_anterior_id,\n        p_tuberia_nueva_id\n    )\n    ORDER BY componente_id\n    FOR UPDATE;\n\n    SELECT *\n    INTO v_anterior\n    FROM aquasense.componente\n    WHERE componente_id = p_tuberia_anterior_id;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'La tubería anterior no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    SELECT *\n    INTO v_nueva\n    FROM aquasense.componente\n    WHERE componente_id = p_tuberia_nueva_id;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'La tubería nueva no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_anterior.tipo <> 'TUBERIA'\n       OR v_nueva.tipo <> 'TUBERIA' THEN\n        RAISE EXCEPTION\n            'Ambos componentes deben ser tuberías.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF v_anterior.estado <> 'ACTIVO'\n       OR v_nueva.estado <> 'ACTIVO' THEN\n        RAISE EXCEPTION\n            'Ambas tuberías deben estar activas antes del reemplazo.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF EXISTS (\n        SELECT 1\n        FROM aquasense.conexion\n        WHERE componente_origen_id = p_tuberia_nueva_id\n           OR componente_destino_id = p_tuberia_nueva_id\n    ) THEN\n        RAISE EXCEPTION\n            'La tubería nueva no debe tener conexiones actuales.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Una tubería solo puede ser reemplazada una vez y una nueva\n    -- solo puede reemplazar directamente a una tubería anterior.\n    IF EXISTS (\n        SELECT 1\n        FROM aquasense.reemplazo_tuberia\n        WHERE tuberia_anterior_id = p_tuberia_anterior_id\n           OR tuberia_nueva_id = p_tuberia_nueva_id\n    ) THEN\n        RAISE EXCEPTION\n            'La relación de reemplazo entra en conflicto con un reemplazo existente.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Evitar ciclos en la cadena de reemplazos.\n    IF EXISTS (\n        WITH RECURSIVE cadena AS (\n            SELECT p_tuberia_nueva_id AS tuberia_id\n\n            UNION\n\n            SELECT r.tuberia_nueva_id\n            FROM aquasense.reemplazo_tuberia AS r\n            JOIN cadena AS c\n                ON r.tuberia_anterior_id = c.tuberia_id\n        )\n        SELECT 1\n        FROM cadena\n        WHERE tuberia_id = p_tuberia_anterior_id\n    ) THEN\n        RAISE EXCEPTION\n            'El reemplazo formaría un ciclo en el historial.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Obtener las conexiones actuales de la tubería anterior.\n    SELECT *\n    INTO v_entrada_antes\n    FROM aquasense.conexion\n    WHERE componente_destino_id = p_tuberia_anterior_id;\n\n    v_tiene_entrada := FOUND;\n\n    SELECT *\n    INTO v_salida_antes\n    FROM aquasense.conexion\n    WHERE componente_origen_id = p_tuberia_anterior_id;\n\n    v_tiene_salida := FOUND;\n\n    IF NOT v_tiene_entrada AND NOT v_tiene_salida THEN\n        RAISE EXCEPTION\n            'La tubería anterior no tiene conexiones actuales.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF v_tiene_entrada THEN\n        UPDATE aquasense.conexion\n        SET componente_destino_id = p_tuberia_nueva_id\n        WHERE conexion_id = v_entrada_antes.conexion_id\n        RETURNING * INTO v_entrada_despues;\n\n        v_conexiones := v_conexiones || jsonb_build_array(\n            jsonb_build_object(\n                'antes', to_jsonb(v_entrada_antes),\n                'despues', to_jsonb(v_entrada_despues)\n            )\n        );\n    END IF;\n\n    IF v_tiene_salida THEN\n        UPDATE aquasense.conexion\n        SET componente_origen_id = p_tuberia_nueva_id\n        WHERE conexion_id = v_salida_antes.conexion_id\n        RETURNING * INTO v_salida_despues;\n\n        v_conexiones := v_conexiones || jsonb_build_array(\n            jsonb_build_object(\n                'antes', to_jsonb(v_salida_antes),\n                'despues', to_jsonb(v_salida_despues)\n            )\n        );\n    END IF;\n\n    -- Ya sin conexiones, la tubería anterior puede retirarse.\n    UPDATE aquasense.componente\n    SET estado = 'RETIRADO'\n    WHERE componente_id = p_tuberia_anterior_id\n    RETURNING * INTO v_anterior;\n\n    INSERT INTO aquasense.reemplazo_tuberia (\n        reemplazo_id,\n        tuberia_anterior_id,\n        tuberia_nueva_id,\n        reporte_id\n    )\n    VALUES (\n        p_reemplazo_id,\n        p_tuberia_anterior_id,\n        p_tuberia_nueva_id,\n        p_reporte_id\n    );\n\n    -- Asociar ambas tuberías al reporte.\n    INSERT INTO aquasense.reporte_componente (\n        reporte_id,\n        componente_id\n    )\n    VALUES\n        (p_reporte_id, p_tuberia_anterior_id),\n        (p_reporte_id, p_tuberia_nueva_id)\n    ON CONFLICT (reporte_id, componente_id) DO NOTHING;\n\n    -- La atención apunta a la tubería instalada. La relación\n    -- formal con la anterior queda en reemplazo_tuberia.\n    v_atencion := jsonb_set(\n        p_atencion,\n        '{componenteId}',\n        to_jsonb(p_tuberia_nueva_id::TEXT),\n        TRUE\n    );\n\n    PERFORM aquasense.registrar_atencion(\n        p_evento_documental_id,\n        p_reporte_id,\n        v_atencion\n    );\n\n    -- Encolar el cambio incremental para Neo4j.\n    PERFORM aquasense.encolar_evento_red(\n        p_evento_grafo_id,\n        jsonb_build_object(\n            'operacion', 'REEMPLAZAR_TUBERIA',\n            'reemplazoId', p_reemplazo_id::TEXT,\n            'reporteId', p_reporte_id::TEXT,\n            'tuberiaAnterior', to_jsonb(v_anterior),\n            'tuberiaNueva', to_jsonb(v_nueva),\n            'conexiones', v_conexiones\n        )\n    );\n\n    RETURN p_reemplazo_id;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "reemplazar_tuberia(p_reemplazo_id uuid, p_tuberia_anterior_id u"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.registrar_atencion(p_evento_id uuid, p_reporte_id uuid, p_atencion jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_estado_reporte TEXT;\n    v_secuencia_actual BIGINT;\n    v_nueva_secuencia BIGINT;\n\n    v_atencion_id UUID;\n    v_componente_id UUID;\n    v_tipo TEXT;\n    v_fecha TIMESTAMPTZ;\nBEGIN\n    -- Validaciones generales.\n    IF p_evento_id IS NULL OR p_reporte_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requieren los identificadores del evento y del reporte.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    IF p_atencion IS NULL\n       OR jsonb_typeof(p_atencion) IS DISTINCT FROM 'object' THEN\n        RAISE EXCEPTION\n            'La atención debe ser un objeto JSON.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF jsonb_typeof(p_atencion -> 'atencionId') IS DISTINCT FROM 'string'\n       OR btrim(p_atencion ->> 'atencionId') = '' THEN\n        RAISE EXCEPTION\n            'La atención requiere un identificador.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    BEGIN\n        v_atencion_id := (p_atencion ->> 'atencionId')::UUID;\n    EXCEPTION\n        WHEN invalid_text_representation THEN\n            RAISE EXCEPTION\n                'El identificador de la atención debe ser un UUID válido.'\n                USING ERRCODE = '23514';\n    END;\n\n    IF jsonb_typeof(p_atencion -> 'tipo') IS DISTINCT FROM 'string' THEN\n        RAISE EXCEPTION\n            'La atención requiere un tipo.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    v_tipo := p_atencion ->> 'tipo';\n\n    IF v_tipo NOT IN ('INSPECCION', 'REPARACION', 'VERIFICACION') THEN\n        RAISE EXCEPTION\n            'Tipo de atención inválido: %.', v_tipo\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF jsonb_typeof(p_atencion -> 'fecha') IS DISTINCT FROM 'string'\n       OR (p_atencion ->> 'fecha') !~\n          '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$' THEN\n        RAISE EXCEPTION\n            'La fecha debe incluir fecha, hora y zona horaria.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    BEGIN\n        v_fecha := (p_atencion ->> 'fecha')::TIMESTAMPTZ;\n    EXCEPTION\n        WHEN invalid_datetime_format OR datetime_field_overflow THEN\n            RAISE EXCEPTION\n                'La fecha de la atención no es válida.'\n                USING ERRCODE = '23514';\n    END;\n\n    IF NOT isfinite(v_fecha) THEN\n        RAISE EXCEPTION\n            'La fecha de la atención debe ser finita.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF jsonb_typeof(p_atencion -> 'descripcion') IS DISTINCT FROM 'string'\n       OR btrim(p_atencion ->> 'descripcion') = '' THEN\n        RAISE EXCEPTION\n            'La atención requiere una descripción.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- El componente es opcional. Si se proporciona, debe existir.\n    IF p_atencion ? 'componenteId'\n       AND p_atencion -> 'componenteId' <> 'null'::JSONB THEN\n\n        IF jsonb_typeof(p_atencion -> 'componenteId') IS DISTINCT FROM 'string'\n           OR btrim(p_atencion ->> 'componenteId') = '' THEN\n            RAISE EXCEPTION\n                'El componente debe identificarse con un UUID válido.'\n                USING ERRCODE = '23514';\n        END IF;\n\n        BEGIN\n            v_componente_id := (p_atencion ->> 'componenteId')::UUID;\n        EXCEPTION\n            WHEN invalid_text_representation THEN\n                RAISE EXCEPTION\n                    'El componente debe identificarse con un UUID válido.'\n                    USING ERRCODE = '23514';\n        END;\n\n        IF NOT EXISTS (\n            SELECT 1\n            FROM aquasense.componente\n            WHERE componente_id = v_componente_id\n        ) THEN\n            RAISE EXCEPTION\n                'El componente indicado no existe.'\n                USING ERRCODE = '23503';\n        END IF;\n    END IF;\n\n    -- Campos específicos de cada tipo.\n    IF v_tipo = 'INSPECCION' THEN\n        IF jsonb_typeof(p_atencion -> 'hallazgos') IS DISTINCT FROM 'string'\n           OR btrim(p_atencion ->> 'hallazgos') = '' THEN\n            RAISE EXCEPTION\n                'La inspección requiere registrar sus hallazgos.'\n                USING ERRCODE = '23514';\n        END IF;\n    END IF;\n\n    IF v_tipo = 'REPARACION' AND p_atencion ? 'materiales' THEN\n        IF jsonb_typeof(p_atencion -> 'materiales') IS DISTINCT FROM 'array' THEN\n            RAISE EXCEPTION\n                'Los materiales deben ser una lista.'\n                USING ERRCODE = '23514';\n        END IF;\n\n        IF EXISTS (\n            SELECT 1\n            FROM jsonb_array_elements(p_atencion -> 'materiales') AS material(valor)\n            WHERE jsonb_typeof(material.valor) <> 'string'\n               OR btrim(material.valor #>> '{}') = ''\n        ) THEN\n            RAISE EXCEPTION\n                'Cada material debe ser un texto no vacío.'\n                USING ERRCODE = '23514';\n        END IF;\n    END IF;\n\n    IF v_tipo = 'VERIFICACION' THEN\n        IF jsonb_typeof(p_atencion -> 'resultado') IS DISTINCT FROM 'string'\n           OR (p_atencion ->> 'resultado') NOT IN (\n               'SIN_INDICIOS',\n               'PERSISTE',\n               'NO_CONCLUYENTE'\n           ) THEN\n            RAISE EXCEPTION\n                'La verificación requiere un resultado válido.'\n                USING ERRCODE = '23514';\n        END IF;\n    END IF;\n\n    -- Bloquear el reporte para ordenar las operaciones sobre él.\n    SELECT estado, secuencia_documental\n    INTO v_estado_reporte, v_secuencia_actual\n    FROM aquasense.reporte\n    WHERE reporte_id = p_reporte_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El reporte indicado no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_estado_reporte = 'CERRADO' THEN\n        RAISE EXCEPTION\n            'No se pueden agregar atenciones a un reporte cerrado.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- El expediente y cualquier atención anterior deben estar confirmados.\n    IF v_secuencia_actual < 1 OR NOT EXISTS (\n        SELECT 1\n        FROM aquasense.evento_salida\n        WHERE destino = 'DOCUMENTAL'\n          AND reporte_id = p_reporte_id\n          AND secuencia = v_secuencia_actual\n          AND estado = 'PROCESADO'\n    ) THEN\n        RAISE EXCEPTION\n            'El reporte tiene una operación documental pendiente o sin confirmar.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- No reutilizar el identificador de una atención en este reporte.\n    IF EXISTS (\n        SELECT 1\n        FROM aquasense.evento_salida\n        WHERE destino = 'DOCUMENTAL'\n          AND reporte_id = p_reporte_id\n          AND tipo = 'AGREGAR_ATENCION'\n          AND datos -> 'atencion' ->> 'atencionId' = v_atencion_id::TEXT\n    ) THEN\n        RAISE EXCEPTION\n            'La atención ya fue registrada para este reporte.'\n            USING ERRCODE = '23505';\n    END IF;\n\n    v_nueva_secuencia := v_secuencia_actual + 1;\n\n    UPDATE aquasense.reporte\n    SET secuencia_documental = v_nueva_secuencia,\n        actualizado_en = CURRENT_TIMESTAMP\n    WHERE reporte_id = p_reporte_id;\n\n    INSERT INTO aquasense.evento_salida (\n        evento_id,\n        destino,\n        tipo,\n        reporte_id,\n        secuencia,\n        datos\n    )\n    VALUES (\n        p_evento_id,\n        'DOCUMENTAL',\n        'AGREGAR_ATENCION',\n        p_reporte_id,\n        v_nueva_secuencia,\n        jsonb_build_object(\n            'reporteId', p_reporte_id::TEXT,\n            'atencion',\n            jsonb_set(\n                p_atencion,\n                '{atencionId}',\n                to_jsonb(v_atencion_id::TEXT)\n            )\n        )\n    );\n\n    RETURN p_evento_id;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "registrar_atencion(p_evento_id uuid, p_reporte_id uuid, p_atenc"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.registrar_fallo_documental(p_evento_id uuid, p_error text, p_proximo_intento_en timestamp with time zone DEFAULT NULL::timestamp with time zone)\n RETURNS text\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_reporte_id UUID;\n    v_estado_evento TEXT;\n    v_intentos_actuales INTEGER;\n    v_nuevos_intentos INTEGER;\n    v_nuevo_estado TEXT;\nBEGIN\n    IF p_evento_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requiere el identificador del evento.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    IF p_error IS NULL OR btrim(p_error) = '' THEN\n        RAISE EXCEPTION\n            'Se requiere una descripción del error.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    SELECT reporte_id\n    INTO v_reporte_id\n    FROM aquasense.evento_salida\n    WHERE evento_id = p_evento_id\n      AND destino = 'DOCUMENTAL';\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El evento documental indicado no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    -- Mantener el mismo orden de bloqueo que las demás funciones.\n    PERFORM 1\n    FROM aquasense.reporte\n    WHERE reporte_id = v_reporte_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El reporte asociado al evento no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    SELECT estado, intentos\n    INTO v_estado_evento, v_intentos_actuales\n    FROM aquasense.evento_salida\n    WHERE evento_id = p_evento_id\n      AND destino = 'DOCUMENTAL'\n      AND reporte_id = v_reporte_id\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El evento documental indicado ya no está disponible.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_estado_evento <> 'PENDIENTE' THEN\n        RAISE EXCEPTION\n            'Solo se pueden registrar fallos de eventos pendientes. Estado actual: %.',\n            v_estado_evento\n            USING ERRCODE = '23514';\n    END IF;\n\n    v_nuevos_intentos := v_intentos_actuales + 1;\n\n    IF v_nuevos_intentos < 3 THEN\n        IF p_proximo_intento_en IS NULL\n           OR NOT isfinite(p_proximo_intento_en)\n           OR p_proximo_intento_en <= CURRENT_TIMESTAMP THEN\n            RAISE EXCEPTION\n                'Se requiere una fecha futura para el próximo intento.'\n                USING ERRCODE = '23514';\n        END IF;\n\n        v_nuevo_estado := 'PENDIENTE';\n    ELSE\n        v_nuevo_estado := 'ERROR';\n    END IF;\n\n    UPDATE aquasense.evento_salida\n    SET intentos = v_nuevos_intentos,\n        estado = v_nuevo_estado,\n        ultimo_error = btrim(p_error),\n        proximo_intento_en = CASE\n            WHEN v_nuevo_estado = 'PENDIENTE'\n                THEN p_proximo_intento_en\n            ELSE NULL\n        END\n    WHERE evento_id = p_evento_id;\n\n    RETURN v_nuevo_estado;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "registrar_fallo_documental(p_evento_id uuid, p_error text, p_pr"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.registrar_fallo_grafo(p_evento_id uuid, p_error text, p_proximo_intento_en timestamp with time zone DEFAULT NULL::timestamp with time zone)\n RETURNS text\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_estado TEXT;\n    v_secuencia BIGINT;\n    v_intentos INTEGER;\n    v_nuevos_intentos INTEGER;\n    v_nuevo_estado TEXT;\nBEGIN\n    IF p_evento_id IS NULL THEN\n        RAISE EXCEPTION\n            'Se requiere el identificador del evento.'\n            USING ERRCODE = '23502';\n    END IF;\n\n    IF p_error IS NULL OR btrim(p_error) = '' THEN\n        RAISE EXCEPTION\n            'Se requiere una descripción del error.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Mantener el orden de bloqueo usado para confirmar eventos.\n    PERFORM control_id\n    FROM aquasense.control_red\n    WHERE control_id = 1\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'No existe el registro de control de la red.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    SELECT estado, secuencia, intentos\n    INTO v_estado, v_secuencia, v_intentos\n    FROM aquasense.evento_salida\n    WHERE evento_id = p_evento_id\n      AND destino = 'GRAFO'\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El evento de grafo indicado no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_estado <> 'PENDIENTE' THEN\n        RAISE EXCEPTION\n            'Solo se pueden registrar fallos de eventos pendientes. Estado actual: %.',\n            v_estado\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- No se procesa un evento si el anterior sigue sin confirmar.\n    IF v_secuencia > 1 AND NOT EXISTS (\n        SELECT 1\n        FROM aquasense.evento_salida\n        WHERE destino = 'GRAFO'\n          AND secuencia = v_secuencia - 1\n          AND estado = 'PROCESADO'\n    ) THEN\n        RAISE EXCEPTION\n            'El evento anterior del grafo no está confirmado.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    v_nuevos_intentos := v_intentos + 1;\n\n    IF v_nuevos_intentos < 3 THEN\n        IF p_proximo_intento_en IS NULL\n           OR NOT isfinite(p_proximo_intento_en)\n           OR p_proximo_intento_en <= CURRENT_TIMESTAMP THEN\n            RAISE EXCEPTION\n                'Se requiere una fecha futura para el próximo intento.'\n                USING ERRCODE = '23514';\n        END IF;\n\n        v_nuevo_estado := 'PENDIENTE';\n    ELSE\n        v_nuevo_estado := 'ERROR';\n    END IF;\n\n    UPDATE aquasense.evento_salida\n    SET intentos = v_nuevos_intentos,\n        estado = v_nuevo_estado,\n        ultimo_error = btrim(p_error),\n        proximo_intento_en = CASE\n            WHEN v_nuevo_estado = 'PENDIENTE'\n                THEN p_proximo_intento_en\n            ELSE NULL\n        END\n    WHERE evento_id = p_evento_id;\n\n    RETURN v_nuevo_estado;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "registrar_fallo_grafo(p_evento_id uuid, p_error text, p_proximo"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.registrar_lectura(p_lectura_id uuid, p_medidor_id uuid, p_fecha_hora timestamp with time zone, p_valor_acumulado numeric)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_estado_medidor aquasense.componente.estado%TYPE;\n    v_ultima_fecha TIMESTAMPTZ;\n    v_ultimo_valor NUMERIC(14,3);\nBEGIN\n    -- Esta primera versión de la operación se plantea para\n    -- READ COMMITTED. La concurrencia se probará después.\n    IF current_setting('transaction_isolation') <> 'read committed' THEN\n        RAISE EXCEPTION\n            'La operación de lectura requiere aislamiento READ COMMITTED.'\n            USING ERRCODE = '25001';\n    END IF;\n\n\n    -- Validar datos obligatorios.\n    IF p_lectura_id IS NULL\n       OR p_medidor_id IS NULL\n       OR p_fecha_hora IS NULL\n       OR p_valor_acumulado IS NULL\n    THEN\n        RAISE EXCEPTION\n            'Todos los datos de la lectura son obligatorios.'\n            USING ERRCODE = '23502';\n    END IF;\n\n\n    -- Rechazar fechas especiales y fechas futuras.\n    IF NOT isfinite(p_fecha_hora) THEN\n        RAISE EXCEPTION\n            'La fecha de la lectura debe ser una fecha válida.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF p_fecha_hora > clock_timestamp() THEN\n        RAISE EXCEPTION\n            'La fecha de la lectura no puede estar en el futuro.'\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Rechazar valores especiales de NUMERIC.\n    IF p_valor_acumulado IN (\n        'NaN'::NUMERIC,\n        'Infinity'::NUMERIC,\n        '-Infinity'::NUMERIC\n    ) THEN\n        RAISE EXCEPTION\n            'El valor acumulado debe ser un número finito.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    IF p_valor_acumulado < 0 THEN\n        RAISE EXCEPTION\n            'El valor acumulado no puede ser negativo.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- NUMERIC(14,3) admite hasta 11 dígitos enteros.\n    IF p_valor_acumulado > 99999999999.999 THEN\n        RAISE EXCEPTION\n            'El valor acumulado supera el máximo permitido.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Se valida antes de insertar para evitar redondeos\n    -- no advertidos al convertir a NUMERIC(14,3).\n    IF scale(p_valor_acumulado) > 3 THEN\n        RAISE EXCEPTION\n            'El valor acumulado puede tener como máximo tres decimales.'\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Bloquear el componente del medidor mientras se revisa\n    -- su última lectura y se registra la nueva.\n    SELECT c.estado\n    INTO v_estado_medidor\n    FROM aquasense.medidor AS m\n    INNER JOIN aquasense.componente AS c\n        ON c.componente_id = m.componente_id\n    WHERE m.componente_id = p_medidor_id\n    FOR UPDATE OF c;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El medidor indicado no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_estado_medidor <> 'ACTIVO' THEN\n        RAISE EXCEPTION\n            'No se pueden registrar lecturas en un medidor retirado.'\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Consultar la última lectura confirmada del medidor.\n    SELECT fecha_hora, valor_acumulado\n    INTO v_ultima_fecha, v_ultimo_valor\n    FROM aquasense.lectura\n    WHERE medidor_id = p_medidor_id\n    ORDER BY fecha_hora DESC\n    LIMIT 1;\n\n    IF FOUND THEN\n        IF p_fecha_hora <= v_ultima_fecha THEN\n            RAISE EXCEPTION\n                'La nueva lectura debe ser posterior a la última lectura del medidor.'\n                USING ERRCODE = '23514';\n        END IF;\n\n        IF p_valor_acumulado < v_ultimo_valor THEN\n            RAISE EXCEPTION\n                'El valor acumulado no puede ser menor que la última lectura: % m3.',\n                v_ultimo_valor\n                USING ERRCODE = '23514';\n        END IF;\n    END IF;\n\n\n    INSERT INTO aquasense.lectura (\n        lectura_id,\n        medidor_id,\n        fecha_hora,\n        valor_acumulado\n    )\n    VALUES (\n        p_lectura_id,\n        p_medidor_id,\n        p_fecha_hora,\n        p_valor_acumulado\n    );\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "registrar_lectura(p_lectura_id uuid, p_medidor_id uuid, p_fecha"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.validar_conexion_red()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    v_tipo_origen aquasense.componente.tipo%TYPE;\n    v_estado_origen aquasense.componente.estado%TYPE;\n\n    v_tipo_destino aquasense.componente.tipo%TYPE;\n    v_estado_destino aquasense.componente.estado%TYPE;\n\n    v_conexion_anterior UUID;\n    v_forma_ciclo BOOLEAN;\nBEGIN\n    -- Coordinamos las modificaciones de conexiones mediante\n    -- la fila de control de la red.\n    PERFORM control_id\n    FROM aquasense.control_red\n    WHERE control_id = 1\n    FOR UPDATE;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'No existe el registro de control de la red.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    -- Al actualizar, excluimos la fila anterior de las\n    -- comprobaciones de salidas y recorridos.\n    IF TG_OP = 'UPDATE' THEN\n        v_conexion_anterior := OLD.conexion_id;\n    END IF;\n\n\n    -- La conexión debe tener exactamente un destino.\n    IF (\n        NEW.componente_destino_id IS NULL\n        AND NEW.espacio_destino_id IS NULL\n    ) OR (\n        NEW.componente_destino_id IS NOT NULL\n        AND NEW.espacio_destino_id IS NOT NULL\n    ) THEN\n        RAISE EXCEPTION\n            'La conexión debe tener un solo destino: componente o espacio.'\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Consultar el componente de origen.\n    SELECT tipo, estado\n    INTO v_tipo_origen, v_estado_origen\n    FROM aquasense.componente\n    WHERE componente_id = NEW.componente_origen_id;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El componente de origen no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_estado_origen <> 'ACTIVO' THEN\n        RAISE EXCEPTION\n            'El componente de origen debe estar activo.'\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Solo las uniones pueden tener más de una salida.\n    IF v_tipo_origen <> 'UNION'\n       AND EXISTS (\n           SELECT 1\n           FROM aquasense.conexion AS c\n           WHERE c.componente_origen_id = NEW.componente_origen_id\n             AND (\n                 v_conexion_anterior IS NULL\n                 OR c.conexion_id <> v_conexion_anterior\n             )\n       )\n    THEN\n        RAISE EXCEPTION\n            'El componente de origen ya tiene una salida registrada.'\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Si el destino es un espacio, el origen debe ser tubería.\n    IF NEW.espacio_destino_id IS NOT NULL THEN\n        IF v_tipo_origen <> 'TUBERIA' THEN\n            RAISE EXCEPTION\n                'Solo una tubería puede conectarse directamente a un espacio.'\n                USING ERRCODE = '23514';\n        END IF;\n\n        -- La clave foránea comprueba que el espacio exista.\n        RETURN NEW;\n    END IF;\n\n\n    -- A partir de aquí, el destino es otro componente.\n    IF NEW.componente_origen_id = NEW.componente_destino_id THEN\n        RAISE EXCEPTION\n            'Un componente no puede conectarse consigo mismo.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    SELECT tipo, estado\n    INTO v_tipo_destino, v_estado_destino\n    FROM aquasense.componente\n    WHERE componente_id = NEW.componente_destino_id;\n\n    IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'El componente de destino no existe.'\n            USING ERRCODE = '23503';\n    END IF;\n\n    IF v_estado_destino <> 'ACTIVO' THEN\n        RAISE EXCEPTION\n            'El componente de destino debe estar activo.'\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Validar las combinaciones de tipos permitidas.\n    IF NOT (\n        (\n            v_tipo_origen = 'CISTERNA'\n            AND v_tipo_destino = 'TUBERIA'\n        )\n        OR (\n            v_tipo_origen = 'TUBERIA'\n            AND v_tipo_destino IN (\n                'TUBERIA',\n                'UNION',\n                'VALVULA',\n                'MEDIDOR'\n            )\n        )\n        OR (\n            v_tipo_origen = 'UNION'\n            AND v_tipo_destino = 'TUBERIA'\n        )\n        OR (\n            v_tipo_origen = 'VALVULA'\n            AND v_tipo_destino = 'TUBERIA'\n        )\n        OR (\n            v_tipo_origen = 'MEDIDOR'\n            AND v_tipo_destino = 'TUBERIA'\n        )\n    ) THEN\n        RAISE EXCEPTION\n            'Conexión no permitida: % hacia %.',\n            v_tipo_origen,\n            v_tipo_destino\n            USING ERRCODE = '23514';\n    END IF;\n\n\n    -- Si desde el destino ya se puede llegar al origen,\n    -- agregar la nueva conexión cerraría un ciclo.\n    WITH RECURSIVE recorrido AS (\n        SELECT NEW.componente_destino_id AS componente_id\n\n        UNION\n\n        SELECT c.componente_destino_id\n        FROM aquasense.conexion AS c\n        INNER JOIN recorrido AS r\n            ON c.componente_origen_id = r.componente_id\n        WHERE c.componente_destino_id IS NOT NULL\n          AND (\n              v_conexion_anterior IS NULL\n              OR c.conexion_id <> v_conexion_anterior\n          )\n    )\n    SELECT EXISTS (\n        SELECT 1\n        FROM recorrido\n        WHERE componente_id = NEW.componente_origen_id\n    )\n    INTO v_forma_ciclo;\n\n    IF v_forma_ciclo THEN\n        RAISE EXCEPTION\n            'La conexión formaría un ciclo en la red.'\n            USING ERRCODE = '23514';\n    END IF;\n\n    RETURN NEW;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "validar_conexion_red()"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.validar_retiro_componente()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    -- Solo necesitamos esta comprobación cuando el componente\n    -- cambia de ACTIVO a RETIRADO.\n    IF OLD.estado = 'ACTIVO'\n       AND NEW.estado = 'RETIRADO'\n    THEN\n        -- Usamos el mismo control de red que la validación\n        -- de conexiones.\n        PERFORM control_id\n        FROM aquasense.control_red\n        WHERE control_id = 1\n        FOR UPDATE;\n\n        IF NOT FOUND THEN\n            RAISE EXCEPTION\n                'No existe el registro de control de la red.'\n                USING ERRCODE = '23514';\n        END IF;\n\n        -- Revisar si el componente aparece como origen o\n        -- como destino en alguna conexión actual.\n        IF EXISTS (\n            SELECT 1\n            FROM aquasense.conexion AS c\n            WHERE c.componente_origen_id = OLD.componente_id\n               OR c.componente_destino_id = OLD.componente_id\n        ) THEN\n            RAISE EXCEPTION\n                'No se puede retirar el componente % porque tiene conexiones actuales.',\n                OLD.codigo\n                USING ERRCODE = '23514';\n        END IF;\n    END IF;\n\n    RETURN NEW;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "validar_retiro_componente()"
+    },
+    {
+      "clase": "funcion",
+      "definicion": {
+        "definicion": "CREATE OR REPLACE FUNCTION aquasense.validar_subtipo_componente()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    -- En una eliminación o actualización se revisa el componente\n    -- al que pertenecía la fila anterior.\n    IF TG_OP IN ('DELETE', 'UPDATE') THEN\n        PERFORM aquasense.comprobar_subtipo_componente(\n            OLD.componente_id\n        );\n    END IF;\n\n    -- En una inserción o actualización se revisa el componente\n    -- al que pertenece la fila nueva.\n    IF TG_OP IN ('INSERT', 'UPDATE') THEN\n        PERFORM aquasense.comprobar_subtipo_componente(\n            NEW.componente_id\n        );\n    END IF;\n\n    RETURN NULL;\nEND;\n$function$\n",
+        "configuracion": null
+      },
+      "identificador": "validar_subtipo_componente()"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX componente_codigo_key ON aquasense.componente USING btree (codigo)"
+      },
+      "identificador": "componente_codigo_key"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX componente_componente_id_tipo_key ON aquasense.componente USING btree (componente_id, tipo)"
+      },
+      "identificador": "componente_componente_id_tipo_key"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX componente_pkey ON aquasense.componente USING btree (componente_id)"
+      },
+      "identificador": "componente_pkey"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX conexion_entrada_componente_uq ON aquasense.conexion USING btree (componente_destino_id) WHERE (componente_destino_id IS NOT NULL)"
+      },
+      "identificador": "conexion_entrada_componente_uq"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX conexion_entrada_espacio_uq ON aquasense.conexion USING btree (espacio_destino_id) WHERE (espacio_destino_id IS NOT NULL)"
+      },
+      "identificador": "conexion_entrada_espacio_uq"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE INDEX conexion_origen_idx ON aquasense.conexion USING btree (componente_origen_id)"
+      },
+      "identificador": "conexion_origen_idx"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX conexion_pkey ON aquasense.conexion USING btree (conexion_id)"
+      },
+      "identificador": "conexion_pkey"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX control_red_pkey ON aquasense.control_red USING btree (control_id)"
+      },
+      "identificador": "control_red_pkey"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE INDEX correccion_lectura_historial_idx ON aquasense.correccion_lectura USING btree (lectura_id, corregido_en)"
+      },
+      "identificador": "correccion_lectura_historial_idx"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX correccion_lectura_pkey ON aquasense.correccion_lectura USING btree (correccion_id)"
+      },
+      "identificador": "correccion_lectura_pkey"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX espacio_pkey ON aquasense.espacio USING btree (espacio_id)"
+      },
+      "identificador": "espacio_pkey"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX evento_documental_secuencia_uq ON aquasense.evento_salida USING btree (reporte_id, secuencia) WHERE ((destino)::text = 'DOCUMENTAL'::text)"
+      },
+      "identificador": "evento_documental_secuencia_uq"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX evento_documental_uno_pendiente_uq ON aquasense.evento_salida USING btree (reporte_id) WHERE (((destino)::text = 'DOCUMENTAL'::text) AND ((estado)::text = ANY ((ARRAY['PENDIENTE'::character varying, 'ERROR'::character varying])::text[])))"
+      },
+      "identificador": "evento_documental_uno_pendiente_uq"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX evento_grafo_secuencia_uq ON aquasense.evento_salida USING btree (secuencia) WHERE ((destino)::text = 'GRAFO'::text)"
+      },
+      "identificador": "evento_grafo_secuencia_uq"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE INDEX evento_pendiente_idx ON aquasense.evento_salida USING btree (destino, proximo_intento_en, registrado_en) WHERE ((estado)::text = 'PENDIENTE'::text)"
+      },
+      "identificador": "evento_pendiente_idx"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX evento_salida_pkey ON aquasense.evento_salida USING btree (evento_id)"
+      },
+      "identificador": "evento_salida_pkey"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX lectura_medidor_id_fecha_hora_key ON aquasense.lectura USING btree (medidor_id, fecha_hora)"
+      },
+      "identificador": "lectura_medidor_id_fecha_hora_key"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX lectura_pkey ON aquasense.lectura USING btree (lectura_id)"
+      },
+      "identificador": "lectura_pkey"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX medidor_pkey ON aquasense.medidor USING btree (componente_id)"
+      },
+      "identificador": "medidor_pkey"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX reemplazo_tuberia_pkey ON aquasense.reemplazo_tuberia USING btree (reemplazo_id)"
+      },
+      "identificador": "reemplazo_tuberia_pkey"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX reemplazo_tuberia_tuberia_anterior_id_key ON aquasense.reemplazo_tuberia USING btree (tuberia_anterior_id)"
+      },
+      "identificador": "reemplazo_tuberia_tuberia_anterior_id_key"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX reemplazo_tuberia_tuberia_nueva_id_key ON aquasense.reemplazo_tuberia USING btree (tuberia_nueva_id)"
+      },
+      "identificador": "reemplazo_tuberia_tuberia_nueva_id_key"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX reporte_componente_pkey ON aquasense.reporte_componente USING btree (reporte_id, componente_id)"
+      },
+      "identificador": "reporte_componente_pkey"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE INDEX reporte_componente_por_componente_idx ON aquasense.reporte_componente USING btree (componente_id)"
+      },
+      "identificador": "reporte_componente_por_componente_idx"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE INDEX reporte_espacio_idx ON aquasense.reporte USING btree (espacio_id)"
+      },
+      "identificador": "reporte_espacio_idx"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX reporte_pkey ON aquasense.reporte USING btree (reporte_id)"
+      },
+      "identificador": "reporte_pkey"
+    },
+    {
+      "clase": "indice",
+      "definicion": {
+        "listo": true,
+        "valido": true,
+        "definicion": "CREATE UNIQUE INDEX valvula_pkey ON aquasense.valvula USING btree (componente_id)"
+      },
+      "identificador": "valvula_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (codigo::text = upper(btrim(codigo::text)) AND codigo::text <> ''::text)"
+      },
+      "identificador": "componente.componente_codigo_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "UNIQUE (codigo)"
+      },
+      "identificador": "componente.componente_codigo_key"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "UNIQUE (componente_id, tipo)"
+      },
+      "identificador": "componente.componente_componente_id_tipo_key"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (espacio_id) REFERENCES aquasense.espacio(espacio_id) ON DELETE RESTRICT"
+      },
+      "identificador": "componente.componente_espacio_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (estado::text = ANY (ARRAY['ACTIVO'::character varying, 'RETIRADO'::character varying]::text[]))"
+      },
+      "identificador": "componente.componente_estado_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (btrim(nombre::text) <> ''::text)"
+      },
+      "identificador": "componente.componente_nombre_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (componente_id)"
+      },
+      "identificador": "componente.componente_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": true,
+        "validada": true,
+        "diferible": true,
+        "definicion": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      },
+      "identificador": "componente.componente_subtipo_completo"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (tipo::text = ANY (ARRAY['CISTERNA'::character varying, 'TUBERIA'::character varying, 'UNION'::character varying, 'VALVULA'::character varying, 'MEDIDOR'::character varying]::text[]))"
+      },
+      "identificador": "componente.componente_tipo_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK ((componente_destino_id IS NOT NULL) <> (espacio_destino_id IS NOT NULL))"
+      },
+      "identificador": "conexion.conexion_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (componente_destino_id IS NULL OR componente_origen_id <> componente_destino_id)"
+      },
+      "identificador": "conexion.conexion_check1"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (componente_destino_id) REFERENCES aquasense.componente(componente_id) ON DELETE RESTRICT"
+      },
+      "identificador": "conexion.conexion_componente_destino_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (componente_origen_id) REFERENCES aquasense.componente(componente_id) ON DELETE RESTRICT"
+      },
+      "identificador": "conexion.conexion_componente_origen_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (espacio_destino_id) REFERENCES aquasense.espacio(espacio_id) ON DELETE RESTRICT"
+      },
+      "identificador": "conexion.conexion_espacio_destino_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (conexion_id)"
+      },
+      "identificador": "conexion.conexion_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (control_id = 1)"
+      },
+      "identificador": "control_red.control_red_control_id_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (control_id)"
+      },
+      "identificador": "control_red.control_red_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (version_red >= 0)"
+      },
+      "identificador": "control_red.control_red_version_red_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (valor_anterior <> valor_nuevo)"
+      },
+      "identificador": "correccion_lectura.correccion_lectura_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (lectura_id) REFERENCES aquasense.lectura(lectura_id) ON DELETE RESTRICT"
+      },
+      "identificador": "correccion_lectura.correccion_lectura_lectura_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (btrim(motivo) <> ''::text)"
+      },
+      "identificador": "correccion_lectura.correccion_lectura_motivo_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (correccion_id)"
+      },
+      "identificador": "correccion_lectura.correccion_lectura_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (valor_anterior >= 0::numeric AND valor_anterior <> 'NaN'::numeric)"
+      },
+      "identificador": "correccion_lectura.correccion_lectura_valor_anterior_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (valor_nuevo >= 0::numeric AND valor_nuevo <> 'NaN'::numeric)"
+      },
+      "identificador": "correccion_lectura.correccion_lectura_valor_nuevo_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (espacio_contenedor_id IS NULL OR espacio_contenedor_id <> espacio_id)"
+      },
+      "identificador": "espacio.espacio_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (espacio_contenedor_id) REFERENCES aquasense.espacio(espacio_id) ON DELETE RESTRICT"
+      },
+      "identificador": "espacio.espacio_espacio_contenedor_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (btrim(nombre::text) <> ''::text)"
+      },
+      "identificador": "espacio.espacio_nombre_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (espacio_id)"
+      },
+      "identificador": "espacio.espacio_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (tipo::text = ANY (ARRAY['EDIFICIO'::character varying, 'BAÑO'::character varying, 'LABORATORIO'::character varying, 'OFICINA'::character varying, 'CAFETERIA'::character varying, 'ZONA_RIEGO'::character varying, 'OTRO'::character varying]::text[]))"
+      },
+      "identificador": "espacio.espacio_tipo_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (destino::text = 'DOCUMENTAL'::text AND reporte_id IS NOT NULL OR destino::text = 'GRAFO'::text AND reporte_id IS NULL)"
+      },
+      "identificador": "evento_salida.evento_salida_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK ((estado::text = 'PROCESADO'::text) = (procesado_en IS NOT NULL))"
+      },
+      "identificador": "evento_salida.evento_salida_check1"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (jsonb_typeof(datos) = 'object'::text)"
+      },
+      "identificador": "evento_salida.evento_salida_datos_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (destino::text = ANY (ARRAY['DOCUMENTAL'::character varying, 'GRAFO'::character varying]::text[]))"
+      },
+      "identificador": "evento_salida.evento_salida_destino_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (estado::text = ANY (ARRAY['PENDIENTE'::character varying, 'PROCESADO'::character varying, 'ERROR'::character varying]::text[]))"
+      },
+      "identificador": "evento_salida.evento_salida_estado_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (intentos >= 0)"
+      },
+      "identificador": "evento_salida.evento_salida_intentos_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (evento_id)"
+      },
+      "identificador": "evento_salida.evento_salida_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (reporte_id) REFERENCES aquasense.reporte(reporte_id) ON DELETE RESTRICT"
+      },
+      "identificador": "evento_salida.evento_salida_reporte_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (secuencia > 0)"
+      },
+      "identificador": "evento_salida.evento_salida_secuencia_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (btrim(tipo::text) <> ''::text)"
+      },
+      "identificador": "evento_salida.evento_salida_tipo_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "UNIQUE (medidor_id, fecha_hora)"
+      },
+      "identificador": "lectura.lectura_medidor_id_fecha_hora_key"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (medidor_id) REFERENCES aquasense.medidor(componente_id) ON DELETE RESTRICT"
+      },
+      "identificador": "lectura.lectura_medidor_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (lectura_id)"
+      },
+      "identificador": "lectura.lectura_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (valor_acumulado >= 0::numeric AND valor_acumulado <> 'NaN'::numeric)"
+      },
+      "identificador": "lectura.lectura_valor_acumulado_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (componente_id, tipo) REFERENCES aquasense.componente(componente_id, tipo) ON DELETE RESTRICT"
+      },
+      "identificador": "medidor.medidor_componente_id_tipo_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (componente_id)"
+      },
+      "identificador": "medidor.medidor_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": true,
+        "validada": true,
+        "diferible": true,
+        "definicion": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      },
+      "identificador": "medidor.medidor_subtipo_completo"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (tipo::text = 'MEDIDOR'::text)"
+      },
+      "identificador": "medidor.medidor_tipo_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (unidad::text = 'm3'::text)"
+      },
+      "identificador": "medidor.medidor_unidad_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (tuberia_anterior_id <> tuberia_nueva_id)"
+      },
+      "identificador": "reemplazo_tuberia.reemplazo_tuberia_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (reemplazo_id)"
+      },
+      "identificador": "reemplazo_tuberia.reemplazo_tuberia_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (reporte_id) REFERENCES aquasense.reporte(reporte_id) ON DELETE RESTRICT"
+      },
+      "identificador": "reemplazo_tuberia.reemplazo_tuberia_reporte_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (tuberia_anterior_id) REFERENCES aquasense.componente(componente_id) ON DELETE RESTRICT"
+      },
+      "identificador": "reemplazo_tuberia.reemplazo_tuberia_tuberia_anterior_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "UNIQUE (tuberia_anterior_id)"
+      },
+      "identificador": "reemplazo_tuberia.reemplazo_tuberia_tuberia_anterior_id_key"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (tuberia_nueva_id) REFERENCES aquasense.componente(componente_id) ON DELETE RESTRICT"
+      },
+      "identificador": "reemplazo_tuberia.reemplazo_tuberia_tuberia_nueva_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "UNIQUE (tuberia_nueva_id)"
+      },
+      "identificador": "reemplazo_tuberia.reemplazo_tuberia_tuberia_nueva_id_key"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK ((estado::text = 'CERRADO'::text) = (cerrado_en IS NOT NULL))"
+      },
+      "identificador": "reporte.reporte_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (espacio_id) REFERENCES aquasense.espacio(espacio_id) ON DELETE RESTRICT"
+      },
+      "identificador": "reporte.reporte_espacio_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (estado::text = ANY (ARRAY['PENDIENTE'::character varying, 'EN_ATENCION'::character varying, 'CERRADO'::character varying]::text[]))"
+      },
+      "identificador": "reporte.reporte_estado_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (reporte_id)"
+      },
+      "identificador": "reporte.reporte_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (secuencia_documental >= 0)"
+      },
+      "identificador": "reporte.reporte_secuencia_documental_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (componente_id) REFERENCES aquasense.componente(componente_id) ON DELETE RESTRICT"
+      },
+      "identificador": "reporte_componente.reporte_componente_componente_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (reporte_id, componente_id)"
+      },
+      "identificador": "reporte_componente.reporte_componente_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (reporte_id) REFERENCES aquasense.reporte(reporte_id) ON DELETE RESTRICT"
+      },
+      "identificador": "reporte_componente.reporte_componente_reporte_id_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (posicion::text = 'DESCONOCIDA'::text OR posicion_registrada_en IS NOT NULL)"
+      },
+      "identificador": "valvula.valvula_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "FOREIGN KEY (componente_id, tipo) REFERENCES aquasense.componente(componente_id, tipo) ON DELETE RESTRICT"
+      },
+      "identificador": "valvula.valvula_componente_id_tipo_fkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "PRIMARY KEY (componente_id)"
+      },
+      "identificador": "valvula.valvula_pkey"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (posicion::text = ANY (ARRAY['ABIERTA'::character varying, 'CERRADA'::character varying, 'DESCONOCIDA'::character varying]::text[]))"
+      },
+      "identificador": "valvula.valvula_posicion_check"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": true,
+        "validada": true,
+        "diferible": true,
+        "definicion": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      },
+      "identificador": "valvula.valvula_subtipo_completo"
+    },
+    {
+      "clase": "restriccion",
+      "definicion": {
+        "diferida": false,
+        "validada": true,
+        "diferible": false,
+        "definicion": "CHECK (tipo::text = 'VALVULA'::text)"
+      },
+      "identificador": "valvula.valvula_tipo_check"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "uuid",
+            "nombre": "componente_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(40)",
+            "nombre": "codigo",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(150)",
+            "nombre": "nombre",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(20)",
+            "nombre": "tipo",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(20)",
+            "nombre": "estado",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": "'ACTIVO'::character varying"
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "espacio_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "text",
+            "nombre": "descripcion",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": null
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "creado_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "componente"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "uuid",
+            "nombre": "conexion_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "componente_origen_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "componente_destino_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "espacio_destino_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "creado_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "conexion"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "smallint",
+            "nombre": "control_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "bigint",
+            "nombre": "version_red",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "0"
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "actualizado_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "control_red"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "uuid",
+            "nombre": "correccion_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "lectura_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "numeric(14,3)",
+            "nombre": "valor_anterior",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "numeric(14,3)",
+            "nombre": "valor_nuevo",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "text",
+            "nombre": "motivo",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": null
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "corregido_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "correccion_lectura"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "uuid",
+            "nombre": "espacio_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(150)",
+            "nombre": "nombre",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(30)",
+            "nombre": "tipo",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "espacio_contenedor_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "text",
+            "nombre": "descripcion",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": null
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "creado_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "espacio"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "uuid",
+            "nombre": "evento_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(20)",
+            "nombre": "destino",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(40)",
+            "nombre": "tipo",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "reporte_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "bigint",
+            "nombre": "secuencia",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "jsonb",
+            "nombre": "datos",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(20)",
+            "nombre": "estado",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": "'PENDIENTE'::character varying"
+          },
+          {
+            "tipo": "integer",
+            "nombre": "intentos",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "0"
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "proximo_intento_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "text",
+            "nombre": "ultimo_error",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": null
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "registrado_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "CURRENT_TIMESTAMP"
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "procesado_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": null,
+            "predeterminado": null
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "evento_salida"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "uuid",
+            "nombre": "lectura_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "medidor_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "fecha_hora",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "numeric(14,3)",
+            "nombre": "valor_acumulado",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "registrado_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "lectura"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "uuid",
+            "nombre": "componente_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(20)",
+            "nombre": "tipo",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": "'MEDIDOR'::character varying"
+          },
+          {
+            "tipo": "character varying(10)",
+            "nombre": "unidad",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": "'m3'::character varying"
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "medidor"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "uuid",
+            "nombre": "reemplazo_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "tuberia_anterior_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "tuberia_nueva_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "reporte_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "registrado_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "CURRENT_TIMESTAMP"
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "reemplazo_tuberia"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "uuid",
+            "nombre": "reporte_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "espacio_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(20)",
+            "nombre": "estado",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": "'PENDIENTE'::character varying"
+          },
+          {
+            "tipo": "bigint",
+            "nombre": "secuencia_documental",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "0"
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "registrado_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "CURRENT_TIMESTAMP"
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "actualizado_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": "CURRENT_TIMESTAMP"
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "cerrado_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": null,
+            "predeterminado": null
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "reporte"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "uuid",
+            "nombre": "reporte_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "uuid",
+            "nombre": "componente_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "reporte_componente"
+    },
+    {
+      "clase": "tabla",
+      "definicion": {
+        "columnas": [
+          {
+            "tipo": "uuid",
+            "nombre": "componente_id",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": null,
+            "predeterminado": null
+          },
+          {
+            "tipo": "character varying(20)",
+            "nombre": "tipo",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": "'VALVULA'::character varying"
+          },
+          {
+            "tipo": "character varying(20)",
+            "nombre": "posicion",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": true,
+            "cotejamiento": "pg_catalog.\"default\"",
+            "predeterminado": "'DESCONOCIDA'::character varying"
+          },
+          {
+            "tipo": "timestamp with time zone",
+            "nombre": "posicion_registrada_en",
+            "generada": "",
+            "identidad": "",
+            "obligatoria": false,
+            "cotejamiento": null,
+            "predeterminado": null
+          }
+        ],
+        "particion": null,
+        "persistencia": "p",
+        "claveParticion": null,
+        "seguridadFilas": false
+      },
+      "identificador": "valvula"
+    },
+    {
+      "clase": "trigger",
+      "definicion": {
+        "definicion": "CREATE CONSTRAINT TRIGGER componente_subtipo_completo AFTER INSERT OR UPDATE ON aquasense.componente DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION aquasense.validar_subtipo_componente()",
+        "habilitado": "O"
+      },
+      "identificador": "componente.componente_subtipo_completo"
+    },
+    {
+      "clase": "trigger",
+      "definicion": {
+        "definicion": "CREATE TRIGGER componente_tipo_inmutable BEFORE UPDATE OF tipo ON aquasense.componente FOR EACH ROW EXECUTE FUNCTION aquasense.impedir_cambio_tipo_componente()",
+        "habilitado": "O"
+      },
+      "identificador": "componente.componente_tipo_inmutable"
+    },
+    {
+      "clase": "trigger",
+      "definicion": {
+        "definicion": "CREATE TRIGGER componente_validar_retiro BEFORE UPDATE OF estado ON aquasense.componente FOR EACH ROW EXECUTE FUNCTION aquasense.validar_retiro_componente()",
+        "habilitado": "O"
+      },
+      "identificador": "componente.componente_validar_retiro"
+    },
+    {
+      "clase": "trigger",
+      "definicion": {
+        "definicion": "CREATE TRIGGER conexion_validar_red BEFORE INSERT OR UPDATE ON aquasense.conexion FOR EACH ROW EXECUTE FUNCTION aquasense.validar_conexion_red()",
+        "habilitado": "O"
+      },
+      "identificador": "conexion.conexion_validar_red"
+    },
+    {
+      "clase": "trigger",
+      "definicion": {
+        "definicion": "CREATE CONSTRAINT TRIGGER medidor_subtipo_completo AFTER DELETE OR UPDATE ON aquasense.medidor DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION aquasense.validar_subtipo_componente()",
+        "habilitado": "O"
+      },
+      "identificador": "medidor.medidor_subtipo_completo"
+    },
+    {
+      "clase": "trigger",
+      "definicion": {
+        "definicion": "CREATE CONSTRAINT TRIGGER valvula_subtipo_completo AFTER DELETE OR UPDATE ON aquasense.valvula DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION aquasense.validar_subtipo_componente()",
+        "habilitado": "O"
+      },
+      "identificador": "valvula.valvula_subtipo_completo"
+    },
+    {
+      "clase": "vista",
+      "definicion": {
+        "opciones": null,
+        "definicion": " WITH lecturas_ordenadas AS (\n         SELECT l_1.lectura_id,\n            l_1.medidor_id,\n            l_1.fecha_hora,\n            l_1.valor_acumulado,\n            lag(l_1.fecha_hora) OVER (PARTITION BY l_1.medidor_id ORDER BY l_1.fecha_hora) AS fecha_hora_anterior,\n            lag(l_1.valor_acumulado) OVER (PARTITION BY l_1.medidor_id ORDER BY l_1.fecha_hora) AS valor_anterior\n           FROM aquasense.lectura l_1\n        )\n SELECT l.lectura_id,\n    l.medidor_id,\n    c.codigo AS codigo_medidor,\n    l.fecha_hora_anterior,\n    l.fecha_hora,\n    l.valor_anterior,\n    l.valor_acumulado,\n    l.valor_acumulado - l.valor_anterior AS consumo_m3\n   FROM lecturas_ordenadas l\n     JOIN aquasense.componente c ON c.componente_id = l.medidor_id;"
+      },
+      "identificador": "consumo_entre_lecturas"
+    }
+  ],
+  "postgresMayor": 16
+}

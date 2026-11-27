@@ -1,0 +1,42 @@
+name: aquasense-pruebas
+services:
+  postgres:
+    image: postgres:16.15
+    environment:
+      POSTGRES_DB: aquasense_pruebas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: solo-pruebas-locales
+    ports: ["127.0.0.1:55432:5432"]
+    volumes: ["postgres-pruebas:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aquasense_pruebas"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  mongodb:
+    image: mongo:8.0.38
+    ports: ["127.0.0.1:57017:27017"]
+    volumes: ["mongo-pruebas:/data/db"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  neo4j:
+    image: neo4j:5.26.34-community
+    environment:
+      NEO4J_AUTH: neo4j/solo-pruebas-locales
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 128m
+    ports: ["127.0.0.1:57687:7687", "127.0.0.1:57474:7474"]
+    volumes: ["neo4j-pruebas:/data"]
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "solo-pruebas-locales", "RETURN 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 40
+volumes:
+  postgres-pruebas:
+  mongo-pruebas:
+  neo4j-pruebas:

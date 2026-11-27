@@ -1,0 +1,13 @@
+✔ solo una sesión obtiene el bloqueo a la vez (26.789875ms)
+✔ un error documental no bloquea otro reporte (29.561683ms)
+✔ selecciona eventos de grafo en orden y respeta el reintento (26.712999ms)
+✔ registra fallos de grafo y permite reactivar el evento (27.864722ms)
+✔ registra fallos documentales y respeta un evento procesado (31.765342ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1081.934051

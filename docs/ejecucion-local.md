@@ -43,3 +43,7 @@ Usa una base separada para repetir el reemplazo desde cero. Puedes conservar el 
 - Sincronizador, desde `sincronizador/`: `npm run check` y `npm test`. Para `npm run test:integracion`, usa PostgreSQL aislado y detén el procesador continuo, como indica el [README del sincronizador](../sincronizador/README.md).
 - Frontend, desde `frontend/`: `npm run lint` y `npm run build`.
 - Consulta los [resultados integral y de rendimiento](validacion.md) para conocer las condiciones y el alcance de las pruebas.
+- La [prueba reproducible del sistema y navegador](../pruebas/README.md) usa
+  servicios aislados y conserva sus resultados. La
+  [comparación de estructura](../herramientas/README.md) exporta ambas bases
+  PostgreSQL en modo de solo lectura.

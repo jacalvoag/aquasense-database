@@ -2,6 +2,13 @@
 
 Pruebas del 25 de noviembre de 2026. El escenario es una red hidráulica académica con datos ficticios.
 
+La [validación adicional del 27 de noviembre](../pruebas/evidencias/2026-11-27/README.md)
+incluye pruebas automatizadas entre los tres motores, comprobación real de la
+interfaz ilustrada y archivos de evidencia dentro del repositorio. Los registros
+`contexto/paso-6/` y `contexto/paso-7/` citados abajo pertenecen a la ejecución
+histórica y no forman parte de este repositorio. Los nuevos resultados no
+reemplazan ni amplían las mediciones históricas de rendimiento.
+
 ## Integración desde la interfaz
 
 Se usó Edge, la API NestJS y el sincronizador con tres bases reales en un proyecto Docker separado. La carga inicial tenía 14 espacios, 20 componentes, 22 conexiones, 7 lecturas y 0 reportes. La demostración conservó esa carga durante la prueba.

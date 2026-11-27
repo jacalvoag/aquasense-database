@@ -85,3 +85,15 @@ otra base.
 
 El sincronizador se ha probado localmente con las bases de reconstrucción.
 Las pruebas realizadas no cubren todas las posibles fallas o configuraciones.
+
+## Prueba del sistema completo
+
+La [guía de pruebas aisladas](../pruebas/README.md) prepara las tres bases y
+ejecuta `npm run test:sistema` con `.env.pruebas`. Comprueba el procesamiento
+real y la recuperación sin duplicados cuando falla la confirmación después
+de aplicar un cambio en MongoDB o Neo4j.
+
+El argumento `--una-vez` ejecuta un ciclo y termina con código 1 si falla.
+`npm run dev:una-vez` lo utiliza con la configuración normal de `.env`;
+`npm run dev` sigue siendo continuo. No ejecutes las pruebas aisladas contra
+la configuración de uso habitual.

@@ -1,28 +1,31 @@
 import { useMemo } from 'react'
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow } from '@xyflow/react'
 import type { Edge, Node, NodeProps } from '@xyflow/react'
-import { Building2, CircleGauge, Cylinder, GitFork, Pipette, SlidersHorizontal, Waypoints } from 'lucide-react'
 import '@xyflow/react/dist/style.css'
 import type { AlcanceRed, NodoRed, SnapshotRed } from '../api/dominio'
 import { etiqueta } from '../operaciones'
 import { altoNodo, anchoNodo, distribuir } from './layout'
+import { FiguraNodo } from './FiguraNodo'
+import './red.css'
 
-type NodoDiagrama = Node<{ entidad: NodoRed; resaltado: boolean; seleccionar: (id: string) => void }, 'red'>
+type NodoDiagrama = Node<{ entidad: NodoRed; resaltado: boolean; atenuado: boolean; seleccionar: (id: string) => void }, 'red'>
+type NodoSector = Node<{ titulo: string }, 'sector'>
 
-const iconos = {
-  CISTERNA: Cylinder, MEDIDOR: CircleGauge, UNION: GitFork, VALVULA: SlidersHorizontal, TUBERIA: Pipette,
+function SectorRed({ data }: NodeProps<NodoSector>) {
+  return <div className="sector-red"><h3>{data.titulo}</h3></div>
 }
 
-function TarjetaNodo({ data, selected }: NodeProps<NodoDiagrama>) {
-  const { entidad, resaltado, seleccionar } = data
-  const Icono = entidad.clase === 'ESPACIO' ? Building2 : iconos[entidad.tipo as keyof typeof iconos] ?? Waypoints
+function NodoIlustrado({ data, selected }: NodeProps<NodoDiagrama>) {
+  const { entidad, resaltado, atenuado, seleccionar } = data
   return (
-    <div className="nodo-red" data-clase={entidad.clase} data-resaltado={resaltado} data-elegido={selected} title={entidad.nombre}>
+    <div className="nodo-ilustrado" data-clase={entidad.clase} data-resaltado={resaltado}
+      data-elegido={selected} data-atenuado={atenuado} title={entidad.nombre}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
-      <button type="button" className="boton-nodo nodrag nopan" aria-pressed={selected}
+      <button type="button" className="figura-boton nodrag nopan" aria-pressed={selected}
+        aria-label={entidad.clase === 'COMPONENTE' ? `${entidad.codigo}, ${entidad.nombre}` : entidad.nombre}
         onClick={() => seleccionar(entidad.id)}>
-        <span className="icono-nodo"><Icono size={17} aria-hidden="true" /></span>
-        <span className="texto-nodo">
+        <FiguraNodo nodo={entidad} />
+        <span className="figura-etiqueta">
           <b>{entidad.clase === 'COMPONENTE' ? entidad.codigo : etiqueta(entidad.tipo)}</b>
           <span>{entidad.nombre}</span>
         </span>
@@ -32,7 +35,7 @@ function TarjetaNodo({ data, selected }: NodeProps<NodoDiagrama>) {
   )
 }
 
-const tipos = { red: TarjetaNodo }
+const tipos = { red: NodoIlustrado, sector: SectorRed }
 
 export default function Diagrama({ red, alcance, seleccionado, alSeleccionar }: {
   red: SnapshotRed
@@ -40,34 +43,40 @@ export default function Diagrama({ red, alcance, seleccionado, alSeleccionar }: 
   seleccionado: string | null
   alSeleccionar: (id: string) => void
 }) {
-  const posiciones = useMemo(() => distribuir(red), [red])
+  const { posiciones, sectores } = useMemo(() => distribuir(red), [red])
   const nodosMarcados = new Set(alcance?.nodoIds)
   const conexionesMarcadas = new Set(alcance?.conexionIds)
   const nodos: NodoDiagrama[] = red.nodos.map((entidad) => ({
     id: entidad.id,
     type: 'red',
-    data: { entidad, resaltado: nodosMarcados.has(entidad.id), seleccionar: alSeleccionar },
+    data: { entidad, resaltado: nodosMarcados.has(entidad.id),
+      atenuado: Boolean(alcance) && !nodosMarcados.has(entidad.id) && seleccionado !== entidad.id, seleccionar: alSeleccionar },
     position: posiciones.get(entidad.id)!,
     width: anchoNodo, height: altoNodo,
     selected: seleccionado === entidad.id,
     ariaLabel: entidad.clase === 'COMPONENTE' ? `${entidad.codigo}, ${entidad.nombre}` : entidad.nombre,
   }))
+  const fondos: NodoSector[] = sectores.map(({ id, titulo, x, y, ancho, alto }) => ({
+    id, type: 'sector', data: { titulo }, position: { x, y },
+    style: { width: ancho, height: alto }, width: ancho, height: alto,
+    selectable: false, focusable: false, draggable: false, zIndex: -1,
+  }))
   const conexiones: Edge[] = red.conexiones.map(({ id, origen, destino }) => {
     const destacado = conexionesMarcadas.has(id)
-    const color = destacado ? '#127a6e' : '#8caaae'
+    const color = destacado ? '#159887' : '#7da4b7'
     return {
       id, source: origen, target: destino, type: 'smoothstep', selectable: false,
       className: destacado ? 'conexion-activa' : undefined,
-      style: { stroke: color, strokeWidth: destacado ? 3.2 : 1.65, opacity: alcance && !destacado ? 0.5 : 1 },
-      markerEnd: { type: MarkerType.ArrowClosed, color, width: 18, height: 18 },
+      style: { stroke: color, strokeWidth: destacado ? 5 : 3, opacity: alcance && !destacado ? 0.3 : 1 },
+      markerEnd: { type: MarkerType.ArrowClosed, color, width: 13, height: 13 },
       zIndex: destacado ? 1 : 0,
     }
   })
 
   return (
     <div className="lienzo" aria-label="Diagrama de la red de agua">
-      <ReactFlow nodes={nodos} edges={conexiones} nodeTypes={tipos}
-        fitView fitViewOptions={{ padding: 0.12 }} minZoom={0.27} maxZoom={2}
+      <ReactFlow nodes={[...fondos, ...nodos]} edges={conexiones} nodeTypes={tipos}
+        forceColorMode="light" fitView fitViewOptions={{ padding: 0.07 }} minZoom={0.2} maxZoom={2}
         nodesDraggable={false} nodesConnectable={false} edgesReconnectable={false}
         deleteKeyCode={null} multiSelectionKeyCode={null} selectionKeyCode={null}
         nodesFocusable={false} edgesFocusable={false}
@@ -76,7 +85,7 @@ export default function Diagrama({ red, alcance, seleccionado, alSeleccionar }: 
           'controls.zoomIn.ariaLabel': 'Acercar', 'controls.zoomOut.ariaLabel': 'Alejar',
           'controls.fitView.ariaLabel': 'Ajustar a la vista',
         }}>
-        <Background gap={18} size={1.2} color="#cbdcde" />
+        <Background gap={20} size={1} color="#c6dce7" />
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>
