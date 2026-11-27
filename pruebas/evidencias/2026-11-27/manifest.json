@@ -1,0 +1,55 @@
+{
+  "escenario": "Ejecución aislada nativa, sin mocks; las estructuras comparadas son dos reconstrucciones independientes.",
+  "archivos": [
+    {
+      "archivo": "comparacion-reconstrucciones.json",
+      "bytes": 637,
+      "sha256": "30e6fea4ea29ecd09123aa575be32fce9de8b6afa24a8d9640511f58bbb9c2da"
+    },
+    {
+      "archivo": "deteccion-indice.json",
+      "bytes": 515,
+      "sha256": "497a7ee882a9698e26fd5cab3870e3226a63a5cc94fdd37f3163d73c7db02ff5"
+    },
+    {
+      "archivo": "estructura-reconstruida.json",
+      "bytes": 118908,
+      "sha256": "26539ab418561f56739ebfa4db4f6a689e8b1c20b6cb239660567decba4bfdc5"
+    },
+    {
+      "archivo": "identificadores.json",
+      "bytes": 171,
+      "sha256": "9b68b234dfc0041f237b20220a0d26bca4a0241eaa01dbea77b7a44af6685d55"
+    },
+    {
+      "archivo": "red-escritorio.png",
+      "bytes": 230925,
+      "sha256": "cf261d8514158cf9f115aaef94ba7acd01e483f9b648318d55053ac23c2f2ba9"
+    },
+    {
+      "archivo": "red-movil.png",
+      "bytes": 96468,
+      "sha256": "d31b994e899272ace6a42720c43efc857d37b99a021618c685da9f9452039fc7"
+    },
+    {
+      "archivo": "sistema.json",
+      "bytes": 1196,
+      "sha256": "896eb253c639fc81d2c0f86983643e57df5e59b0f336ccf4cebf72417f18ea0e"
+    },
+    {
+      "archivo": "test-integracion.txt",
+      "bytes": 469,
+      "sha256": "bf4c16c4c29a755326b51f3fc93eb0519151271def58d10631f6f63451d00ae4"
+    },
+    {
+      "archivo": "test-sistema.txt",
+      "bytes": 770,
+      "sha256": "1799df1292862e7969e78e91a8577fa3e2b0304918f24868beaf4a6fdd1eb7f4"
+    },
+    {
+      "archivo": "test-visual.txt",
+      "bytes": 1056,
+      "sha256": "4a4a9f9e8eeb506a08ad6bfa425985f449430e0d1965b1e8895f65bb3925d766"
+    }
+  ]
+}

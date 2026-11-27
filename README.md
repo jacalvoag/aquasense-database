@@ -144,13 +144,24 @@ se aplicó en la base de destino.
   configuración se describen en [api/README.md](api/README.md).
 - La interfaz permite registrar lecturas, atender reportes y consultar el
   alcance aguas abajo. Se comprobó el flujo de reemplazo con los tres motores.
+- La red se representa mediante figuras SVG seleccionables. Se comprobó su
+  funcionamiento en escritorio y móvil contra la API y los motores reales.
+- Se automatizó el flujo completo de reporte, inspección, reemplazo,
+  verificación, cierre y consumo, incluida la recuperación sin duplicados
+  después de fallar la confirmación en PostgreSQL. La
+  [guía de pruebas](pruebas/README.md) y las
+  [evidencias del 27 de noviembre](pruebas/evidencias/2026-11-27/README.md)
+  permiten revisar las condiciones y resultados.
+- Dos reconstrucciones independientes coincidieron en 12 tablas, 69
+  restricciones, 27 índices, 21 funciones, 6 triggers y 1 vista. El comparador
+  también detectó un índice eliminado dentro de una transacción revertida.
 
 ### Pendiente
 
-- Ampliar las pruebas automatizadas del procesamiento completo entre
-  PostgreSQL, MongoDB y Neo4j.
-- Revisar la reconstrucción de tablas, restricciones e índices de
-  PostgreSQL, además de las funciones y los triggers ya comparados.
+- Ejecutar la comparación contra la base original `aquasense` del equipo del
+  responsable. Las [herramientas de exportación y comparación](herramientas/README.md)
+  están preparadas y probadas; la coincidencia entre dos reconstrucciones no
+  sustituye esa comprobación.
 - La edición general de espacios y componentes queda fuera del prototipo
   actual. Las escrituras de la API requieren una credencial de operador local;
   consulta [api/README.md](api/README.md).

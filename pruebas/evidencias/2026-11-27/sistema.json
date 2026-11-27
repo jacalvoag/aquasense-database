@@ -1,0 +1,42 @@
+{
+  "fecha": "2026-11-27T07:19:25.890Z",
+  "finalizado": true,
+  "escenario": "Tres motores reales aislados; sin drivers simulados.",
+  "node": "v24.22.3",
+  "plataforma": "linux",
+  "versiones": {
+    "postgres": "16.15",
+    "mongodb": "7.0.48",
+    "neo4j": "5.26.34"
+  },
+  "casos": [
+    {
+      "caso": "carga base: identificadores y 22 conexiones coinciden entre PostgreSQL y Neo4j",
+      "estado": "APROBADO"
+    },
+    {
+      "caso": "API: salud de los tres motores y snapshot inicial",
+      "estado": "APROBADO"
+    },
+    {
+      "caso": "reporte: autorización, validación, sincronización y rechazo del cierre prematuro",
+      "estado": "APROBADO"
+    },
+    {
+      "caso": "MongoDB: recuperación después de aplicar una atención, sin duplicarla",
+      "estado": "APROBADO"
+    },
+    {
+      "caso": "Neo4j: reemplazo y recuperación sin duplicar tubería, conexiones ni historial",
+      "estado": "APROBADO"
+    },
+    {
+      "caso": "verificación, cierre y rechazo de atención sobre reporte cerrado",
+      "estado": "APROBADO"
+    },
+    {
+      "caso": "lectura acumulada, consumo de 2.500 m³ y ciclo sin eventos pendientes",
+      "estado": "APROBADO"
+    }
+  ]
+}

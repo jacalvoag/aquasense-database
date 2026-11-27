@@ -1,0 +1,29 @@
+{
+  "fecha": "2026-11-27T07:19:27.384Z",
+  "hashes": {
+    "original": "26539ab418561f56739ebfa4db4f6a689e8b1c20b6cb239660567decba4bfdc5",
+    "reconstruccion": "26539ab418561f56739ebfa4db4f6a689e8b1c20b6cb239660567decba4bfdc5"
+  },
+  "coinciden": true,
+  "cantidades": {
+    "original": {
+      "funcion": 21,
+      "indice": 27,
+      "restriccion": 69,
+      "tabla": 12,
+      "trigger": 6,
+      "vista": 1
+    },
+    "reconstruccion": {
+      "funcion": 21,
+      "indice": 27,
+      "restriccion": 69,
+      "tabla": 12,
+      "trigger": 6,
+      "vista": 1
+    }
+  },
+  "faltantes": [],
+  "adicionales": [],
+  "diferentes": []
+}

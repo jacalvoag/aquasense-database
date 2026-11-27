@@ -1,0 +1,27 @@
+{
+  "escenario": "Índice retirado dentro de una transacción revertida",
+  "coinciden": false,
+  "cantidades": {
+    "original": {
+      "funcion": 21,
+      "indice": 27,
+      "restriccion": 69,
+      "tabla": 12,
+      "trigger": 6,
+      "vista": 1
+    },
+    "reconstruccion": {
+      "funcion": 21,
+      "indice": 26,
+      "restriccion": 69,
+      "tabla": 12,
+      "trigger": 6,
+      "vista": 1
+    }
+  },
+  "faltantes": [
+    "indice:evento_pendiente_idx"
+  ],
+  "adicionales": [],
+  "diferentes": []
+}
