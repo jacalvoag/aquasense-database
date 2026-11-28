@@ -14,7 +14,8 @@ export function configurar(api, sincronizador) {
     return Number(valor);
   }
   const apiPuerto = puerto(api.PORT || '3000', 'PORT');
-  if (apiPuerto === 5173) throw new Error('La API y Vite necesitan puertos distintos; 5173 está reservado al frontend.');
+  const frontendPuerto = puerto(api.FRONTEND_PORT || '5173', 'FRONTEND_PORT');
+  if (apiPuerto === frontendPuerto) throw new Error('La API y Vite necesitan puertos distintos.');
   const host = (valor) => ['localhost', '127.0.0.1', '[::1]', '::1'].includes(valor.toLowerCase()) ? 'local' : valor.toLowerCase();
   function destinoUri(valor, nombre, protocolos, predeterminado) {
     let uri;
@@ -33,7 +34,7 @@ export function configurar(api, sincronizador) {
     throw new Error('La API y el sincronizador deben apuntar a los mismos servidores, puertos y bases.');
   }
   const origenes = (api.CORS_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173').split(',').map((o) => o.trim());
-  const frontendUrl = ['http://localhost:5173', 'http://127.0.0.1:5173'].find((o) => origenes.includes(o));
-  if (!frontendUrl) throw new Error('CORS_ORIGINS debe incluir http://localhost:5173 o http://127.0.0.1:5173.');
-  return { apiPuerto, apiUrl: 'http://127.0.0.1:' + apiPuerto, frontendUrl };
+  const frontendUrl = [`http://localhost:${frontendPuerto}`, `http://127.0.0.1:${frontendPuerto}`].find((o) => origenes.includes(o));
+  if (!frontendUrl) throw new Error('CORS_ORIGINS debe incluir el origen local y el FRONTEND_PORT configurado.');
+  return { apiPuerto, frontendPuerto, apiUrl: 'http://127.0.0.1:' + apiPuerto, frontendUrl };
 }

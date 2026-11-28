@@ -1,3 +1,4 @@
+import { contexto } from './contexto'
 import { Conexiones } from './paginas/Conexiones'
 import { useEffect, useState } from 'react'
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from 'react-router'
@@ -64,7 +65,7 @@ function Inicio() {
   return (
     <>
       <header className="cabecera inicio-cabecera">
-        <p className="campus">Campus UPChiapas <span> / </span> Inicio</p>
+        <p className="campus">{contexto.escenario} <span> / </span> Inicio</p>
         <h1>Operación de la red de agua</h1>
         <p>Consulta las lecturas y da seguimiento al mantenimiento del campus.</p>
       </header>
@@ -189,7 +190,7 @@ export default function App() {
           <NavLink to="/" end><Home size={19} />Inicio</NavLink>
           {secciones.map(({ ruta, nombre, icono: Icono }) => <NavLink key={ruta} to={ruta}><Icono size={19} />{nombre}</NavLink>)}
         </nav>
-        <div className="barra-pie"><span className="barra-campus">UPChiapas <small>Campus universitario</small></span>
+        <div className="barra-pie"><span className="barra-campus">{contexto.institucion} <small>Campus universitario</small></span>
         <AccesoOperador credencial={credencial} cambiar={cambiarCredencial} />
         </div>
       </header>

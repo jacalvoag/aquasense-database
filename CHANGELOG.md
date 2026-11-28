@@ -1,5 +1,11 @@
 # Historial de cambios
 
+## 1.2.1 — 2026-11-27
+
+- Reorganiza el README y documenta la revisión de valores fijos.
+- Usa proxy /api en Docker y permite configurar puerto nativo y contexto visual.
+- Comprueba Docker con puertos, credenciales y bases alternativos, sin UUID fijo.
+
 ## 1.2.0 — 2026-11-27
 
 - Arranca las tres bases, inicialización, API, sincronizador y frontend con Compose.

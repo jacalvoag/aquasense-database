@@ -119,6 +119,15 @@ jobs:
 
   docker:
     name: Aplicación completa en Docker
+    env:
+      POSTGRES_DB: aquasense_configurable
+      MONGODB_DATABASE: aquasense_configurable
+      API_PORT: '3002'
+      FRONTEND_PORT: '5174'
+      API_BASE_URL: http://127.0.0.1:3002
+      FRONTEND_URL: http://127.0.0.1:5174
+      API_OPERATOR_USER: operador-configurable
+      API_OPERATOR_PASSWORD: clave-configurable-solo-ci
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
