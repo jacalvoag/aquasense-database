@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "test:visual": "playwright test",
     "preview": "vite preview",
-    "dev:local": "vite --host 127.0.0.1 --port 5173 --strictPort"
+    "dev:local": "vite --host 127.0.0.1 --strictPort"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.4",

@@ -47,8 +47,8 @@ try {
         } catch { return $false }
         finally { $cliente.Dispose() }
     }
-    if ((Test-PuertoLocal ([int]$configuracion.apiPuerto)) -or (Test-PuertoLocal 5173)) {
-        throw 'El puerto de la API o el 5173 ya está ocupado. Detén las sesiones anteriores antes de usar este lanzador.'
+    if ((Test-PuertoLocal ([int]$configuracion.apiPuerto)) -or (Test-PuertoLocal ([int]$configuracion.frontendPuerto))) {
+        throw 'El puerto de la API o del frontend ya está ocupado. Detén las sesiones anteriores antes de usar este lanzador.'
     }
     $shellWindows = (Get-Command powershell.exe -ErrorAction Stop).Source
     function Abrir-Terminal([string]$carpeta, [string]$comando) {
@@ -69,10 +69,10 @@ try {
 
     Abrir-Terminal 'sincronizador' 'npm run dev'
     $apiPublica = ([string]$configuracion.apiUrl).Replace("'", "''")
-    Abrir-Terminal 'frontend' ("$" + "env:VITE_API_BASE_URL = '" + $apiPublica + "'; npm run dev:local")
+    Abrir-Terminal 'frontend' ("$" + "env:VITE_API_BASE_URL = '" + $apiPublica + "'; $" + "env:FRONTEND_PORT = '" + $configuracion.frontendPuerto + "'; npm run dev:local")
     $frontendListo = $false
     for ($intento = 0; $intento -lt 30; $intento++) {
-        if (Test-PuertoLocal 5173) { $frontendListo = $true; break }
+        if (Test-PuertoLocal ([int]$configuracion.frontendPuerto)) { $frontendListo = $true; break }
         Start-Sleep -Seconds 1
     }
     if (-not $frontendListo) { throw 'El frontend no respondió. Revisa su terminal de Vite.' }

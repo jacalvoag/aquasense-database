@@ -39,3 +39,10 @@ test('exige un origen de Vite permitido por CORS', () => {
   assert.throws(() => configurar({ ...ejemplo(), CORS_ORIGINS: 'https://otro.invalid' }, ejemplo()), /CORS_ORIGINS/);
   assert.equal(configurar({ ...ejemplo(), CORS_ORIGINS: 'http://127.0.0.1:5173' }, ejemplo()).frontendUrl, 'http://127.0.0.1:5173');
 });
+
+test('admite puertos personalizados sin confundir el origen de CORS', () => {
+  const api = { ...ejemplo(), PORT: '5173', FRONTEND_PORT: '5180', CORS_ORIGINS: 'http://localhost:5180' };
+  assert.equal(configurar(api, ejemplo()).frontendPuerto, 5180);
+  assert.equal(configurar(api, ejemplo()).frontendUrl, 'http://localhost:5180');
+  assert.throws(() => configurar({ ...api, FRONTEND_PORT: '5173' }, ejemplo()), /puertos distintos/);
+});

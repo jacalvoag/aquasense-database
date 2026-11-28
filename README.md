@@ -1,159 +1,132 @@
 # AquaSense
 
-**Seguimiento del mantenimiento y consulta de una red de agua.** Prototipo
-académico con lecturas manuales, expedientes de reportes y recorridos aguas abajo.
-El campus de la Universidad Politécnica de Chiapas es el escenario de demostración.
+Aplicación académica para registrar y consultar una red de agua, capturar
+lecturas manuales y seguir reportes de mantenimiento hasta su cierre.
+El campus de UPChiapas proporciona el escenario inicial de demostración.
 
-![Red ilustrada de AquaSense en escritorio](pruebas/evidencias/2026-11-27/red-escritorio.png)
+![Red ilustrada en una ejecución documentada](pruebas/evidencias/2026-11-27/red-escritorio.png)
 
-Captura de una ejecución real del 27 de noviembre de 2026. Las figuras son
-simbólicas; los componentes, conexiones y recorridos proceden de la API.
+## Ejecutar con Docker
 
-[Construir ramales](docs/red-dinamica.md) ·
-[Arranque local](docs/ejecucion-local.md) ·
-[Guion de demostración](docs/demostracion.md) ·
-[Solución de problemas](docs/solucion-problemas.md) ·
-[Informe técnico](docs/informe-tecnico.md) ·
-[Contrato de la API](docs/api/contrato.md) ·
-[Resultados y límites](docs/validacion.md)
-
-## Arranque completo con Docker
+Requisitos: Git y Docker con Compose v2. En Windows, Docker Desktop debe estar
+abierto en modo de contenedores Linux. La primera construcción necesita Internet.
 
 ```powershell
+git clone https://github.com/jacalvoag/aquasense-database.git
+cd aquasense-database
 docker compose up --build -d --wait --wait-timeout 300
 ```
 
-Abre http://localhost:5173. Operador de demostración: `operador` /
-`aquasense-operador-local`. Docker prepara las tres bases y las aplicaciones
-con volúmenes persistentes. Consulta [la guía completa](docs/docker.md) para
-instalación, puertos, reinicio y límites de esta configuración local.
+Abre **http://localhost:5173**. Acceso local de demostración:
+**operador** / **aquasense-operador-local**.
 
-## Qué permite hacer
-
-- Registrar espacios y componentes de los cinco tipos admitidos.
-- Crear, modificar y eliminar conexiones, con confirmación y actualización automática del diagrama.
-- Consultar espacios, componentes, lecturas y reportes.
-- Registrar lecturas acumuladas y obtener el consumo entre lecturas.
-- Crear un reporte, documentar inspección, reparación y verificación, y cerrarlo.
-- Preparar una tubería sin conexiones e instalarla mediante el reemplazo de
-  otra existente, conservando sus conexiones, o conectarla para crear un ramal.
-- Explorar una red ilustrada, consultar los espacios aguas abajo y revisar
-  la confirmación documental y del grafo por separado.
-- Ver en la portada los reportes pendientes y en atención, los componentes
-  activos, la lectura más reciente y la disponibilidad de los tres motores.
-
-La credencial de operador habilita escrituras. Las consultas son públicas.
-La API verifica cada operación y el sincronizador confirma los cambios de
-MongoDB y Neo4j de forma recuperable.
-
-## Actualizar desde la versión 1.0.0
-
-Conserva tus archivos de configuración y tus bases. Detén temporalmente API, sincronizador
-y frontend y aplica las migraciones aditivas 35 y 36:
+Se inician PostgreSQL, MongoDB, Neo4j, la inicialización verificada, la API,
+el sincronizador y el frontend Nginx. No necesitas instalar Node ni los
+motores en el host. Si ya utilizas los puertos 3000/5173, detén esas aplicaciones
+o configura otros puertos siguiendo [la guía Docker](docs/docker.md).
 
 ```powershell
-node --env-file=sincronizador/.env herramientas/actualizar-red.mjs --aplicar
+docker compose ps
+docker compose logs --tail=80 api sincronizador
+docker compose down
 ```
 
-La [guía de red dinámica](docs/red-dinamica.md) reúne los pasos de actualización
-y un ensayo para registrar y conectar un ramal nuevo sin cargar datos manualmente.
+`down` conserva los registros en los volúmenes. `down -v` elimina los datos de
+este entorno Docker. Las bases que tienes instaladas directamente en tu equipo
+son independientes y no se importan ni modifican.
 
-## Ejecutar en Windows
+## Qué puedes hacer
 
-Necesitas las tres bases preparadas y encendidas, Node.js y npm. Usa Node 26
-para reproducir la configuración recomendada. La [guía local](docs/ejecucion-local.md)
-explica los archivos `.env`; no se suben a Git.
+- Registrar espacios y cisternas, tuberías, uniones, válvulas y medidores.
+- Crear, modificar y eliminar conexiones respetando las reglas de la red.
+- Consultar el diagrama y el alcance aguas abajo, con actualización automática
+  después de confirmar la sincronización.
+- Capturar lecturas acumuladas y consultar el consumo del intervalo.
+- Crear reportes, agregar inspecciones, reemplazar tuberías, verificar y cerrar.
+- Consultar expedientes y distinguir el estado operativo de la confirmación
+  documental y del grafo.
 
-Desde la **raíz del repositorio**, donde están `api/`, `sincronizador/`
-y `frontend/`:
+Los componentes se registran sin conexiones. Puedes conectarlos para formar
+ramales; las tuberías también pueden instalarse mediante un reemplazo.
+Los registros se conservan al reiniciar. Sigue el [ensayo de un ramal nuevo](docs/red-dinamica.md).
+
+## Configuración
+
+| Ejecución | Archivo o variable | Uso |
+| --- | --- | --- |
+| Docker | `.env` opcional en la raíz | Puertos publicados, credenciales y nombres de bases; valores documentados en la guía. |
+| Docker | `/api` | Ruta del navegador en su mismo origen; Nginx la dirige a la API interna. |
+| Nativa | `api/.env` y `sincronizador/.env` | Conexiones a los mismos motores y credencial del operador. |
+| Nativa | `FRONTEND_PORT` en `api/.env` | Puerto que abre el lanzador; predeterminado 5173. Autoriza su origen en CORS_ORIGINS. |
+| Frontend nativo | `frontend/.env.local` | VITE_API_BASE_URL para una API distinta de la dirección local predeterminada. |
+| Frontend | VITE_ESCENARIO y VITE_INSTITUCION | Rótulos visuales; variables de build en Docker o `.env.local` en Vite. |
+
+Las credenciales no se incluyen en el código del navegador. La API valida las
+escrituras y la interfaz conserva la credencial del operador solo en memoria.
+Los valores predeterminados de Compose son para demostración local; los puertos
+se publican únicamente en loopback. No es una configuración de producción pública.
+
+## Ejecutar sin Docker
+
+Sigue la [guía nativa](docs/ejecucion-local.md). Con bases preparadas, archivos
+`.env` configurados y desde la raíz, en Windows:
 
 ```powershell
 .\iniciar.ps1 -Instalar
 ```
 
-En los siguientes arranques:
+Para actualizar una instalación anterior a la red dinámica, consulta las
+[migraciones 35 y 36](docs/red-dinamica.md). No vuelvas a ejecutar la carga base
+sobre bases que ya contienen trabajo.
 
-```powershell
-.\iniciar.ps1
-```
+## Arquitectura
 
-El lanzador comprueba las bases y abre las tres aplicaciones en terminales
-separadas. No instala motores ni carga datos. Para detener las aplicaciones,
-usa Ctrl+C en cada terminal. Si ya están abiertas, utiliza sus sesiones
-existentes o ciérralas antes de ejecutar el lanzador.
+| Motor | Responsabilidad |
+| --- | --- |
+| PostgreSQL | Datos operativos, lecturas, conexiones, reportes, reemplazos y eventos; restricciones y transacciones. |
+| MongoDB | Expediente por reporte con el detalle de atenciones y su secuencia aplicada. |
+| Neo4j | Proyección de conexiones, recorridos dirigidos e historial de reemplazos. |
 
-Solo configuración y dependencias, sin conexiones ni arranque:
-`.\iniciar.ps1 -SoloComprobar`. También puedes arrancar cada aplicación
-[por separado](docs/ejecucion-local.md#arranque-manual).
+React consulta la API NestJS. Las escrituras y los eventos se registran en
+PostgreSQL. El sincronizador aplica los cambios en MongoDB/Neo4j y confirma los
+eventos. La API verifica versiones y secuencias antes de entregar proyecciones
+como actuales. El [contrato](docs/api/contrato.md) explica los estados y errores.
 
-## Por qué tres bases de datos
+## Pruebas y evidencias
 
-| Motor | Responsabilidad | Adecuación al trabajo |
-| --- | --- | --- |
-| PostgreSQL | Datos operativos, lecturas, reportes, conexiones, reemplazos y eventos. | Restricciones y transacciones mantienen coherente cada operación. |
-| MongoDB | Un expediente por reporte, con el detalle de sus atenciones. | Agrupa el historial documental y admite campos distintos por tipo de atención. |
-| Neo4j | Proyección de conexiones y reemplazos para recorridos dirigidos. | Expresa ramales y consultas aguas abajo mediante relaciones entre nodos. |
+- [Pruebas reproducibles del sistema y navegador](pruebas/README.md).
+- [Resultados históricos, medición y límites](docs/validacion.md).
+- [Evidencias fechadas](pruebas/evidencias/2026-11-27/README.md).
+- [Comparación de estructura PostgreSQL](herramientas/README.md).
 
-Se eligieron responsabilidades complementarias. Esto no demuestra que los
-otros motores sean incapaces de resolverlas; la integración es parte del
-objetivo académico.
-
-```mermaid
-flowchart TD
-  UI["Interfaz React"] --> API["API NestJS"]
-  API -->|operación y consultas| PG["PostgreSQL"]
-  API -->|consulta de expediente| MO["MongoDB"]
-  API -->|consulta de red| NE["Neo4j"]
-  PG -->|eventos pendientes| SY["Sincronizador"]
-  SY -->|aplica y verifica| MO
-  SY -->|aplica y verifica| NE
-  SY -->|confirma evento| PG
-```
-
-La respuesta de una escritura confirma PostgreSQL. La interfaz espera los
-eventos correspondientes antes de presentar el expediente o la red como
-sincronizados. Consulta el [contrato](docs/api/contrato.md) para los estados
-y errores.
-
-## Comprobar y reproducir
-
-Las [pruebas aisladas](pruebas/README.md) ejecutan el flujo completo y su
-recuperación con los tres motores. La [validación documentada](docs/validacion.md)
-separa pruebas unitarias, HTTP con drivers simulados, ejecución real y
-mediciones históricas. GitHub Actions conserva los resultados de cada nueva
-ejecución como artefactos; no sustituye las evidencias históricas.
-
-La comparación local de `aquasense` y `aquasense_reconstruccion` reportó
-**190 objetos coincidentes**, sin faltantes, adicionales ni diferencias.
-El [resumen](pruebas/evidencias/2026-11-27/comparacion-original-resumen.json)
-se conserva separado de la comparación entre reconstrucciones aisladas.
+GitHub Actions comprueba código, aplicación Docker, persistencia tras recrear
+contenedores y arranque de Vite en Windows. La prueba Docker usa puertos,
+credenciales y nombres de bases distintos de los predeterminados para detectar
+dependencias de esos valores. Los datos del escenario y las comprobaciones
+esperadas de pruebas están separados de la lógica operativa.
 
 ## PostgreSQL: estructura y carga base
 
-La preparación de bases nuevas está en [preparacion-bases.md](docs/preparacion-bases.md).
-Incluye las cantidades de la carga inicial, los pasos de MongoDB y Neo4j y el
-[ejemplo manual de reporte y reemplazo](docs/ejemplo-reporte-reemplazo.md).
-No vuelvas a cargar los scripts sobre las bases usadas para la presentación.
+La [preparación de bases nuevas](docs/preparacion-bases.md) conserva los pasos
+SQL, MongoDB y Neo4j y el [ejemplo manual](docs/ejemplo-reporte-reemplazo.md).
+En Docker esa preparación inicial se realiza automáticamente.
 
-## Alcance y límites
+## Alcance
 
-Los espacios sirven de referencia académica. Las conexiones, tuberías,
-lecturas y reportes son datos supuestos o de prueba. El diagrama representa
-conectividad; no es un plano técnico ni una simulación de presión o caudal.
-El prototipo no detecta fugas automáticamente ni demuestra ahorro de agua.
+Las lecturas e infraestructura del ejemplo son datos académicos. Los registros
+y cambios de la aplicación se guardan realmente en las bases. El diagrama
+representa conectividad, sin simular presión o caudal. El prototipo no incluye
+sensores, detección automática de fugas ni ahorro de agua medido.
 
-La aplicación local utiliza un operador y un sincronizador. Se pueden registrar
-espacios y componentes y administrar las conexiones desde la aplicación. Los componentes nuevos pueden conectarse para formar ramales;
-las tuberías también pueden instalarse mediante un reemplazo. Los sensores y
-una infraestructura pública de producción quedan fuera de esta entrega.
+El modo documentado utiliza un operador y un sincronizador. El esquema SQL,
+los tipos admitidos y los identificadores de control son contratos del modelo;
+los identificadores de registros operativos se generan y consultan dinámicamente.
 
 ## Equipo
 
-- José Antonio Calvo Aguilar.
-- Uzzi Yazziel Gonzaga Gómez.
+José Antonio Calvo Aguilar y Uzzi Yazziel Gonzaga Gómez. Ingeniería en
+Tecnologías de la Información e Innovación Digital, Universidad Politécnica de
+Chiapas. Docente: Horacio Irán Solís Cisneros.
 
-Ingeniería en Tecnologías de la Información e Innovación Digital,
-Universidad Politécnica de Chiapas. Docente: Horacio Irán Solís Cisneros.
-
-La [versión académica 1.2.0](docs/version-1.2.0.md) describe la entrega;
-el [historial de cambios](CHANGELOG.md) conserva sus novedades.
+[Demostración](docs/demostracion.md) · [Diagnóstico](docs/solucion-problemas.md) ·
+[Informe técnico](docs/informe-tecnico.md) · [Historial](CHANGELOG.md)

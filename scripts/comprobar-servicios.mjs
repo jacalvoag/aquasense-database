@@ -16,7 +16,7 @@ async function leer(ruta) {
   for (const clave of new Set([...Object.keys(valores), ...comunes])) {
     if (process.env[clave] !== undefined) valores[clave] = process.env[clave];
   }
-  for (const clave of ['API_OPERATOR_USER', 'API_OPERATOR_PASSWORD', 'PORT', 'CORS_ORIGINS']) {
+  for (const clave of ['API_OPERATOR_USER', 'API_OPERATOR_PASSWORD', 'PORT', 'CORS_ORIGINS', 'FRONTEND_PORT']) {
     if (process.env[clave] !== undefined) valores[clave] = process.env[clave];
   }
   return valores;

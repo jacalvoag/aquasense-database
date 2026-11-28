@@ -1,3 +1,4 @@
+import { contexto } from '../contexto'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { List, Network, RotateCw } from 'lucide-react'
 import { Link } from 'react-router'
@@ -138,7 +139,7 @@ export function Red() {
   return (
     <>
       <div className="encabezado">
-        <div><p className="campus">Campus UPChiapas</p><h1>Red de agua</h1></div>
+        <div><p className="campus">{contexto.escenario}</p><h1>Red de agua</h1></div>
         <div className="acciones"><Link className="boton" to="/conexiones">Administrar conexiones</Link><Link className="boton" to="/componentes">Catálogo de componentes</Link></div>
       </div>
       <div className="panel barra-red">

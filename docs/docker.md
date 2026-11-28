@@ -63,15 +63,15 @@ un archivo `.env` en la raíz (ignorado por Git):
 ```dotenv
 API_PORT=3002
 FRONTEND_PORT=5174
-VITE_API_BASE_URL=http://127.0.0.1:3002
-CORS_ORIGINS=http://localhost:5174,http://127.0.0.1:5174
 API_OPERATOR_USER=operador
 API_OPERATOR_PASSWORD=una-clave-local-propia
 ```
 
 Ejecuta de nuevo `docker compose up --build -d --wait --wait-timeout 300` y
-abre http://localhost:5174. La URL de API del navegador se fija durante el
-build del frontend; no uses el nombre interno `api` en esa variable.
+abre http://localhost:5174. Por defecto, el navegador usa `/api` en su mismo origen y Nginx lo dirige al
+servicio interno. No necesitas repetir el puerto de API ni configurar CORS
+para esa ruta. Si defines VITE_API_BASE_URL con una API externa, su valor se
+fija al construir la imagen y debes autorizar el origen en CORS_ORIGINS.
 También puedes definir POSTGRES_PASSWORD y NEO4J_PASSWORD **antes del primer
 arranque**. Cambiar esas variables no cambia las claves guardadas en volúmenes
 ya inicializados. Conserva los valores empleados o administra las claves con
@@ -86,3 +86,7 @@ migraciones; el inicializador no vuelve a sembrar ni migra datos automáticament
 La prueba automatizada construye las imágenes, registra un ramal y un reporte,
 verifica MongoDB y Neo4j mediante la API, recrea los contenedores y comprueba
 que los registros sigan disponibles.
+
+Puedes definir POSTGRES_DB y MONGODB_DATABASE antes del primer arranque.
+El esquema SQL aquasense y la base neo4j de Community pertenecen al modelo
+instalado. VITE_ESCENARIO y VITE_INSTITUCION personalizan los rótulos al construir.

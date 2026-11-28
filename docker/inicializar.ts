@@ -36,7 +36,7 @@ try {
   const adaptadorMongo = {
     getSiblingDB(nombre: string) {
       assert.equal(nombre, 'aquasense');
-      // El nombre lógico de los scripts se dirige únicamente a aquasense_pruebas.
+      // El nombre lógico del script se dirige a la base configurada por Compose.
       return {
         createCollection: (nombre: string, opciones: object) => tareas.push(baseMongo.createCollection(nombre, opciones)),
         expedientes: { createIndex: (claves: IndexSpecification, opciones: object) => tareas.push(baseMongo.collection('expedientes').createIndex(claves, opciones)) },
