@@ -155,5 +155,5 @@ una infraestructura pública de producción quedan fuera de esta entrega.
 Ingeniería en Tecnologías de la Información e Innovación Digital,
 Universidad Politécnica de Chiapas. Docente: Horacio Irán Solís Cisneros.
 
-La [versión académica 1.1.1](docs/version-1.1.1.md) describe la entrega;
+La [versión académica 1.2.0](docs/version-1.2.0.md) describe la entrega;
 el [historial de cambios](CHANGELOG.md) conserva sus novedades.

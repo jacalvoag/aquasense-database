@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## 1.2.0 — 2026-11-27
+
+- Arranca las tres bases, inicialización, API, sincronizador y frontend con Compose.
+- Verifica la carga antes de habilitar la API y conserva registros en volúmenes.
+- Añade pruebas de construcción, sincronización y persistencia tras recrear contenedores.
+- Documenta instalación, puertos, credenciales locales y reinicio del entorno Docker.
+
 ## 1.1.1 — 2026-11-27
 
 - Corrige el arranque de Vite desde PowerShell evitando reenviar sus opciones mediante npm.
