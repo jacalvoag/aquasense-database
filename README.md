@@ -17,6 +17,17 @@ simbólicas; los componentes, conexiones y recorridos proceden de la API.
 [Contrato de la API](docs/api/contrato.md) ·
 [Resultados y límites](docs/validacion.md)
 
+## Arranque completo con Docker
+
+```powershell
+docker compose up --build -d --wait --wait-timeout 300
+```
+
+Abre http://localhost:5173. Operador de demostración: `operador` /
+`aquasense-operador-local`. Docker prepara las tres bases y las aplicaciones
+con volúmenes persistentes. Consulta [la guía completa](docs/docker.md) para
+instalación, puertos, reinicio y límites de esta configuración local.
+
 ## Qué permite hacer
 
 - Registrar espacios y componentes de los cinco tipos admitidos.
