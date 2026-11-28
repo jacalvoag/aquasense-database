@@ -38,7 +38,11 @@ La [guía de red dinámica](../docs/red-dinamica.md) incluye las migraciones y u
 ensayo completo de registro y conexiones. La prueba visual de escrituras
 requiere un sincronizador continuo dirigido a las bases aisladas.
 
-En PowerShell usa `npm run dev:local` para el puerto 5173 estricto. Las opciones
+En PowerShell usa `npm run dev:local` para el puerto configurado (5173 por defecto), sin cambiarlo si está ocupado. Las opciones
 están dentro del script npm para evitar que el shim de PowerShell las interprete
 como opciones de npm. `npm run dev` sigue disponible con los valores normales
 de Vite.
+
+FRONTEND_PORT configura el servidor Vite nativo. Con el lanzador se define en
+api/.env y debe coincidir con el origen autorizado en CORS_ORIGINS. En Docker,
+FRONTEND_PORT solo cambia el puerto publicado y la API del navegador usa /api.
